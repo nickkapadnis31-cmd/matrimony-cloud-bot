@@ -1270,30 +1270,42 @@ If interested: INTEREST ${target.profile_id}`;
         await sendText(from, "Photo not received properly. Please send again.");
         return;
       }
-
-      // Meta -> URL -> download -> Drive upload -> permanent link
-      const metaUrl = await getMetaMediaUrl(mediaId);
-      if (!metaUrl) {
-        await sendText(from, "Could not read photo. Please send again.");
-        return;
-      }
-
-      let permanentLink = "";
       try {
-        const { bytes, contentType } = await downloadMetaMediaBytes(metaUrl);
-        const filename = `MH_${from}_${Date.now()}.jpg`;
-        permanentLink = await uploadPhotoToDrive(bytes, contentType, filename);
-      } catch (e) {
-        console.error("Drive upload error:", e?.response?.data || e.message);
-      }
+      // 1️⃣ Get media URL from Meta
+const mediaUrlRes = await axios.get(
+  `https://graph.facebook.com/v20.0/${mediaId}`,
+  {
+    headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` }
+  }
+);
 
-      if (!permanentLink) {
-        await sendText(from, "Photo upload failed. Please send photo again after some time.");
-        return;
-      }
+const mediaUrl = mediaUrlRes.data.url;
 
-      temp.photo_url = permanentLink;
+// 2️⃣ Download actual image as STREAM
+const mediaResponse = await axios.get(mediaUrl, {
+  headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` },
+  responseType: "stream"
+});
 
+// 3️⃣ Upload to Google Drive
+const drive = google.drive({ version: "v3", auth });
+
+const driveFile = await drive.files.create({
+  requestBody: {
+    name: `profile_${Date.now()}.jpg`,
+    parents: [process.env.DRIVE_FOLDER_ID],
+  },
+  media: {
+    mimeType: "image/jpeg",
+    body: mediaResponse.data, // ✅ This is now a stream
+  },
+});
+
+const driveFileId = driveFile.data.id;
+
+// 4️⃣ Save this in temp
+temp.photo_file_id = driveFileId;
+      
       // Create profile + notify admin
       const profileId = await createProfile(from, temp);
       await notifyAdminNewProfile(profileId, from, temp);
