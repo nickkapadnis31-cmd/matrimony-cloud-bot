@@ -145,6 +145,30 @@ async function sendText(to, text) {
   );
 }
 
+async function notifyAdminNewProfile(profileId, from, temp) {
+  const admin = ADMIN_PHONE; // already normalized at top
+  if (!admin) return;
+
+  const msg =
+`🆕 New Registration (PENDING)
+
+Profile ID: ${profileId}
+Phone: ${from}
+Name: ${(temp?.name || "")} ${(temp?.surname || "")}
+Gender: ${temp?.gender || ""}
+DOB: ${temp?.date_of_birth || ""}
+Religion: ${temp?.religion || ""}
+Caste: ${temp?.caste || ""}
+City: ${temp?.city || ""}, ${temp?.district || ""}
+Education: ${temp?.education || ""}
+Job: ${temp?.job || ""}
+Income: ${temp?.income_annual || ""}
+
+✅ Approve: approve ${profileId}
+❌ Reject: reject ${profileId}`;
+
+  await sendText(admin, msg);
+}
 // ===================== Webhook Verify (GET) =====================
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
@@ -326,6 +350,7 @@ You can now browse matches.`);
       temp.income_annual = text;
 
       const profileId = await createProfile(from, temp);
+      await notifyAdminNewprofile(profileId,from, temp);
       await setState(from, "", {}); // clear
 
       await sendText(
