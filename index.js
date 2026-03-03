@@ -14,6 +14,7 @@
 
 require("dotenv").config();
 
+const { Readable } = require("stream");
 const express = require("express");
 const axios = require("axios");
 const { google } = require("googleapis");
@@ -238,34 +239,44 @@ async function downloadMetaMediaBytes(mediaUrl) {
 }
 
 // ===================== Google Drive Photo Storage =====================
+// ===================== Google Drive Photo Storage =====================
 async function uploadPhotoToDrive(bytes, contentType, filename) {
   if (!DRIVE_FOLDER_ID) return "";
 
   const drive = await getDriveClient();
 
-  const createRes = await drive.files.create({
-    requestBody: {
-      name: filename,
-      parents: [DRIVE_FOLDER_ID],
-    },
-    media: {
-      mimeType: contentType,
-      body: Buffer.from(bytes),
-    },
-    fields: "id",
-  });
+  try {
+    // Convert bytes -> Buffer -> Readable stream (IMPORTANT FIX)
+    const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+    const stream = Readable.from(buffer);
 
-  const fileId = createRes.data?.id;
-  if (!fileId) return "";
+    const createRes = await drive.files.create({
+      requestBody: {
+        name: filename,
+        parents: [DRIVE_FOLDER_ID],
+      },
+      media: {
+        mimeType: contentType || "image/jpeg",
+        body: stream, // MUST be stream (fixes pipe error)
+      },
+      fields: "id",
+    });
 
-  // Make public
-  await drive.permissions.create({
-    fileId,
-    requestBody: { role: "reader", type: "anyone" },
-  });
+    const fileId = createRes.data?.id;
+    if (!fileId) return "";
 
-  // More WhatsApp-friendly direct link
-  return `https://drive.google.com/uc?export=download&id=${fileId}`;
+    // Make file public
+    await drive.permissions.create({
+      fileId,
+      requestBody: { role: "reader", type: "anyone" },
+    });
+
+    // WhatsApp-friendly direct link
+    return `https://drive.google.com/uc?export=download&id=${fileId}`;
+  } catch (err) {
+    console.error("Drive upload error:", err?.response?.data || err.message);
+    return "";
+  }
 }
 
 // ===================== Sheets: STATE =====================
