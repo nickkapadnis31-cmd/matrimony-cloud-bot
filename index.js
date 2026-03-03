@@ -14,6 +14,18 @@ const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN; // Permanent token (or temp f
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID; // Meta phone number id
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 
+const ADMIN_PHONE = (process.env.ADMIN_PHONE || "").replace(/\D/g, "");
+
+function normalizePhone(p) {
+  return (p || "").toString().replace(/\D/g, "");
+}
+function isAdmin(from) {
+  const f = normalizePhone(from);
+  if (!ADMIN_PHONE) return false;
+  // match full number OR match last 10 digits (safer if Meta sends without country sometimes)
+  return f === ADMIN_PHONE || f.slice(-10) === ADMIN_PHONE.slice(-10);
+}
+
 const SERVICE_ACCOUNT_FILE = process.env.GOOGLE_SERVICE_ACCOUNT_FILE; // service_account.json
 
 // ===================== Google Sheets =====================
@@ -162,6 +174,61 @@ app.post("/webhook", async (req, res) => {
     const from = msg.from; // user number in international format (no +)
     const text = (msg.text?.body || "").trim();
 
+   // ================= ADMIN APPROVAL =================
+
+if (text.toLowerCase().startsWith("approve")) {
+
+  if (!isAdmin(from)) {
+    await sendWhatsAppMessage(from, "❌ Only admin can approve profiles.");
+    return res.sendStatus(200);
+  }
+
+  const profileId = text.split(" ")[1]; // approve MH-8104
+
+  if (!profileId) {
+    await sendWhatsAppMessage(from, "Please send: approve MH-XXXX");
+    return res.sendStatus(200);
+  }
+
+  const sheets = await getSheetsClient();
+  const resData = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: "Sheet1!A:Z",
+  });
+
+  const rows = resData.data.values || [];
+
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === profileId) {
+
+      // Update status column (change index if needed)
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SHEET_ID,
+        range: `Sheet1!N${i + 1}`,
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [["APPROVED"]],
+        },
+      });
+
+      const userPhone = rows[i][1]; // assuming column B has phone
+
+      await sendWhatsAppMessage(userPhone,
+        `🎉 Congratulations!
+Your Profile ID *${profileId}* has been APPROVED.
+
+You can now browse matches.`);
+
+      await sendWhatsAppMessage(from,
+        `✅ Profile ${profileId} approved successfully.`);
+
+      return res.sendStatus(200);
+    }
+  }
+
+  await sendWhatsAppMessage(from, "Profile ID not found.");
+  return res.sendStatus(200);
+}
     // Only handle text messages
     if (!text) return;
 
@@ -263,7 +330,7 @@ app.post("/webhook", async (req, res) => {
 
       await sendText(
         from,
-        `✅ Registration completed!\nYour Profile ID: *${profileId}*\n\nStatus: *PENDING approval*.\nYou will get message after approval.`
+        `✅ Registration completed!\nYour Profile ID: *${profileId}*\n\nStatus: *PENDING approval*.\nYou will get message within 24 hours after approval.`
       );
       return;
     }
