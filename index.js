@@ -18,10 +18,12 @@ const SERVICE_ACCOUNT_FILE = process.env.GOOGLE_SERVICE_ACCOUNT_FILE; // service
 
 // ===================== Google Sheets =====================
 async function getSheetsClient() {
-  const auth = new google.auth.GoogleAuth({
-    keyFile: SERVICE_ACCOUNT_FILE,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
+ const { GoogleAuth } = require("google-auth-library");
+
+const auth = new GoogleAuth({
+  credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON),
+  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+});
   return google.sheets({ version: "v4", auth });
 }
 
