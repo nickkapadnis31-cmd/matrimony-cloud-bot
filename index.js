@@ -22,6 +22,9 @@ const app = express();
 app.use(express.json());
 
 // ===================== ENV =====================
+// ===================== BRAND =====================
+const BRAND_NAME = "नवीन नाती | Navin Nati";
+const BRAND_TAGLINE = "तुमच्या जीवनसाथीच्या शोधाची नवी सुरुवात 💍";
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "";
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || "";
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || "";
@@ -708,7 +711,7 @@ app.post("/webhook", async (req, res) => {
       await updateProfileStatus(prof.rowIndex, newStatus);
 
       if (cmd === "APPROVE") {
-        await sendText(prof.phone, `🎉 Your profile *${profileId}* has been *APPROVED*.\nType *MATCHES* to browse profiles.`);
+        await sendText(prof.phone,`🎉 ${BRAND_NAME}\nYour profile *${profileId}* has been *APPROVED* ✅\n\nType *MATCHES* to browse profiles.`);
         await sendText(from, `✅ Approved ${profileId}`);
       } else {
         await sendText(prof.phone, `❌ Your profile *${profileId}* was *REJECTED*.\nYou can create a new profile after deleting this one.`);
@@ -1134,7 +1137,7 @@ If interested: INTEREST ${target.profile_id}`;
       }
 
       await setState(from, "ASK_NAME", {});
-      await sendText(from, "✅ Matrimony Maharashtra\n\nReply with your *Name*:");
+      await sendText(from,`💍 ${BRAND_NAME}\n\n${BRAND_TAGLINE}\n\nReply with your *Name*:`);
       return;
     }
 
@@ -1298,10 +1301,8 @@ If interested: INTEREST ${target.profile_id}`;
       // Clear state
       await setState(from, "", {});
 
-      await sendText(
-        from,
-        `✅ Registration completed!\nYour Profile ID: *${profileId}*\n\nStatus: *PENDING approval*.\nYou will get message within 24 hours after approval.`
-      );
+      await sendText(from, `✅ Registration completed — ${BRAND_NAME}\nYour Profile ID: *${profileId}*\n\nStatus: *PENDING approval*.\nYou will get message within 24 hours after approval.`
+);
       return;
     }
   } catch (err) {
