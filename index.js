@@ -1,46 +1,41 @@
-// index.js — Navin Nati (नवीन नाती) WhatsApp Matrimony Bot
-// Meta Cloud API + Google Sheets + Google Drive
+// index.js — Navin Nati (नवीन नाती) WhatsApp Bot (Meta Cloud API + Google Sheets + Cloudinary)
+//
+// Tagline: “नवीन नाती – विश्वासाने जोडलेली.”
+// Welcome msg: Navin Nati (नवीन नाती)\nविश्वासाने जुळवा योग्य स्थळ
+//
 // Features:
 // - Max 2 profiles per phone (JOIN/NewProfile blocked if 2)
 // - MYPROFILES, DELETE MH-XXXX
-// - Admin approve/reject
+// - Admin approve/reject (restricted by ADMIN_PHONE)
 // - Only APPROVED can browse matches; results only APPROVED
 // - 18+ enforced on registration and results
-// - Photo stored permanently in Google Drive; stored in profiles.photo_url (public link)
-// - MATCHES: auto opposite gender + asks basic filters; shows 5 results + NEXT/PREV
-// - DETAILS MH-XXXX: max 5/month; sends photo as WhatsApp image + details
+// - Photo stored permanently in Cloudinary; stored in profiles.photo_url (public URL)
+// - MATCHES: opposite gender + asks filters; shows 5 results + NEXT/PREV
+// - DETAILS MH-XXXX: max 5/month; sends WhatsApp image + details
 // - INTEREST MH-XXXX: max 5/month; notifies target; ACCEPT/REJECT to share contact
 // - requests sheet columns: A req_id, B from_profile_id, C to_profile_id, D status, E created_at, F type, G viewer_phone
 
 require("dotenv").config();
 
-const cloudinary = require("cloudinary").v2;
-const { Readable } = require("stream");
 const express = require("express");
 const axios = require("axios");
 const { google } = require("googleapis");
 const { GoogleAuth } = require("google-auth-library");
+const cloudinary = require("cloudinary").v2;
 
 const app = express();
 app.use(express.json());
 
-// ===================== BRAND =====================
-const BRAND_NAME = "Navin Nati (नवीन नाती)";
-const BRAND_TAGLINE = "नवीन नाती – विश्वासाने जोडलेली.";
-const BRAND_WELCOME_LINE = "विश्वासाने जुळवा योग्य स्थळ.";
-
 // ===================== ENV =====================
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "",
-  api_key: process.env.CLOUDINARY_API_KEY || "",
-  api_secret: process.env.CLOUDINARY_API_SECRET || "",
-});
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "";
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || "";
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || "";
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || "";
 const ADMIN_PHONE = normalizePhone(process.env.ADMIN_PHONE || "");
-const DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID || ""; // REQUIRED for permanent photo
+
+const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || "";
+const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "";
+const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET || "";
 
 if (!VERIFY_TOKEN || !WHATSAPP_TOKEN || !PHONE_NUMBER_ID || !SHEET_ID) {
   console.warn("⚠️ Missing required env vars. Check VERIFY_TOKEN, WHATSAPP_TOKEN, PHONE_NUMBER_ID, GOOGLE_SHEET_ID.");
@@ -48,9 +43,14 @@ if (!VERIFY_TOKEN || !WHATSAPP_TOKEN || !PHONE_NUMBER_ID || !SHEET_ID) {
 if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
   console.warn("⚠️ Missing GOOGLE_SERVICE_ACCOUNT_JSON env var.");
 }
-if (!DRIVE_FOLDER_ID) {
-  console.warn("⚠️ Missing GOOGLE_DRIVE_FOLDER_ID env var. Permanent photo storage will NOT work.");
+if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+  console.warn("⚠️ Missing Cloudinary env vars. Check CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET.");
 }
+
+// ===================== Branding =====================
+const BRAND_NAME = "Navin Nati (नवीन नाती)";
+const BRAND_TAGLINE = "नवीन नाती – विश्वासाने जोडलेली.";
+const WELCOME_MSG = `${BRAND_NAME}\nविश्वासाने जुळवा योग्य स्थळ`;
 
 // ===================== CONSTANTS =====================
 const PROFILE_TAB = "profiles";
@@ -75,8 +75,7 @@ function nowISO() {
 }
 
 function monthKey(isoString = nowISO()) {
-  // YYYY-MM
-  return isoString.slice(0, 7);
+  return isoString.slice(0, 7); // YYYY-MM
 }
 
 function safeJsonParse(s, fallback) {
@@ -90,9 +89,7 @@ function safeJsonParse(s, fallback) {
 function isAdmin(from) {
   const f = normalizePhone(from);
   if (!ADMIN_PHONE) return false;
-  // Safer: exact match only (recommended). If you really want last-10 match, uncomment.
-  return f === ADMIN_PHONE;
-  // return f === ADMIN_PHONE || f.slice(-10) === ADMIN_PHONE.slice(-10);
+  return f === ADMIN_PHONE || f.slice(-10) === ADMIN_PHONE.slice(-10);
 }
 
 function parseCommand(text) {
@@ -101,7 +98,6 @@ function parseCommand(text) {
 }
 
 function calcAgeFromDobDDMMYYYY(dob) {
-  // dob = DD-MM-YYYY
   if (!/^\d{2}-\d{2}-\d{4}$/.test(dob || "")) return null;
   const [dd, mm, yyyy] = dob.split("-").map((x) => parseInt(x, 10));
   if (!dd || !mm || !yyyy) return null;
@@ -118,39 +114,56 @@ function calcAgeFromDobDDMMYYYY(dob) {
   return age;
 }
 
-// ===================== Webhook Dedupe (Meta retries) =====================
-const processedMsgIds = new Map(); // msgId -> timestamp
+function oppositeGender(g) {
+  const x = (g || "").toLowerCase();
+  if (x === "male") return "female";
+  if (x === "female") return "male";
+  return "";
+}
 
-function isDuplicateMsg(msgId) {
-  if (!msgId) return false;
-  const now = Date.now();
+// ===================== Cloudinary =====================
+cloudinary.config({
+  cloud_name: CLOUDINARY_CLOUD_NAME,
+  api_key: CLOUDINARY_API_KEY,
+  api_secret: CLOUDINARY_API_SECRET,
+});
 
-  // cleanup older than 10 minutes
-  for (const [k, t] of processedMsgIds.entries()) {
-    if (now - t > 10 * 60 * 1000) processedMsgIds.delete(k);
+async function uploadPhotoToCloudinary(bytes, filename = "") {
+  try {
+    const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+
+    return await new Promise((resolve) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: "navin_nati_profiles",
+          resource_type: "image",
+          public_id: filename ? filename.replace(/\.[^/.]+$/, "") : undefined,
+          overwrite: false,
+        },
+        (error, result) => {
+          if (error) {
+            console.error("Cloudinary upload error:", error);
+            return resolve("");
+          }
+          resolve(result?.secure_url || "");
+        }
+      );
+
+      uploadStream.end(buffer);
+    });
+  } catch (err) {
+    console.error("Cloudinary error:", err?.message || err);
+    return "";
   }
-
-  if (processedMsgIds.has(msgId)) return true;
-  processedMsgIds.set(msgId, now);
-  return false;
 }
 
 // ===================== Google Auth / Clients =====================
 function getAuth() {
-  let credentials;
-  try {
-    credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON || "");
-  } catch (e) {
-    console.error("❌ GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON");
-    throw e;
-  }
+  const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
 
   return new GoogleAuth({
     credentials,
-    scopes: [
-      "https://www.googleapis.com/auth/spreadsheets",
-      "https://www.googleapis.com/auth/drive",
-    ],
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
 }
 
@@ -159,38 +172,28 @@ async function getSheetsClient() {
   return google.sheets({ version: "v4", auth });
 }
 
-async function getDriveClient() {
-  const auth = getAuth();
-  return google.drive({ version: "v3", auth });
-}
-
 // ===================== WhatsApp Cloud API =====================
 async function sendText(to, body) {
   const phone = normalizePhone(to);
   if (!phone) return;
 
   const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
-
-  try {
-    await axios.post(
-      url,
-      {
-        messaging_product: "whatsapp",
-        to: phone,
-        type: "text",
-        text: { body },
+  await axios.post(
+    url,
+    {
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "text",
+      text: { body },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json",
       },
-      {
-        headers: {
-          Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        timeout: 20000,
-      }
-    );
-  } catch (e) {
-    console.error("sendText failed:", e?.response?.data || e.message);
-  }
+      timeout: 20000,
+    }
+  );
 }
 
 async function sendImageByLink(to, imageLink, caption = "") {
@@ -198,30 +201,25 @@ async function sendImageByLink(to, imageLink, caption = "") {
   if (!phone) return;
 
   const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
-
-  try {
-    await axios.post(
-      url,
-      {
-        messaging_product: "whatsapp",
-        to: phone,
-        type: "image",
-        image: {
-          link: imageLink, // public URL
-          ...(caption ? { caption } : {}),
-        },
+  await axios.post(
+    url,
+    {
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "image",
+      image: {
+        link: imageLink,
+        ...(caption ? { caption } : {}),
       },
-      {
-        headers: {
-          Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        timeout: 20000,
-      }
-    );
-  } catch (e) {
-    console.error("sendImageByLink failed:", e?.response?.data || e.message);
-  }
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      timeout: 20000,
+    }
+  );
 }
 
 async function getMetaMediaUrl(mediaId) {
@@ -244,37 +242,6 @@ async function downloadMetaMediaBytes(mediaUrl) {
   };
 }
 
-// ===================== Google Drive Photo Storage =====================
-// ===================== Google Drive Photo Storage =====================
-async function uploadPhotoToCloudinary(bytes, filename = "") {
-  try {
-    const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
-
-    return await new Promise((resolve) => {
-      const stream = cloudinary.uploader.upload_stream(
-        {
-          folder: "navin_nati_profiles",
-          resource_type: "image",
-          public_id: filename ? filename.replace(/\.[^/.]+$/, "") : undefined,
-          overwrite: false,
-        },
-        (error, result) => {
-          if (error) {
-            console.error("Cloudinary upload error:", error);
-            return resolve("");
-          }
-          resolve(result?.secure_url || "");
-        }
-      );
-
-      stream.end(buffer);
-    });
-  } catch (err) {
-    console.error("Cloudinary error:", err?.message || err);
-    return "";
-  }
-}
-
 // ===================== Sheets: STATE =====================
 async function getState(phone) {
   const sheets = await getSheetsClient();
@@ -285,10 +252,8 @@ async function getState(phone) {
 
   const rows = res.data.values || [];
   for (let i = 1; i < rows.length; i++) {
-    const p = rows[i][0] || "";
-    const step = rows[i][1] || "";
-    const temp_data = rows[i][2] || "{}";
-    if (p === phone) return { step, temp_data };
+    const [p, step, temp_data] = rows[i];
+    if ((p || "") === phone) return { step: step || "", temp_data: temp_data || "{}" };
   }
   return { step: "", temp_data: "{}" };
 }
@@ -388,7 +353,7 @@ async function findProfilesByPhone(phone) {
     const obj = profileRowToObj(rows[i], i + 1);
     if (obj.phone === phone) list.push(obj);
   }
-  return list; // oldest..newest (append order)
+  return list;
 }
 
 async function findProfileById(profileId) {
@@ -431,8 +396,8 @@ async function deleteProfileRow(rowIndex1Based) {
             range: {
               sheetId,
               dimension: "ROWS",
-              startIndex: rowIndex1Based - 1, // 0-based inclusive
-              endIndex: rowIndex1Based, // exclusive
+              startIndex: rowIndex1Based - 1,
+              endIndex: rowIndex1Based,
             },
           },
         },
@@ -457,23 +422,23 @@ async function createProfile(phone, temp) {
   const createdAt = nowISO();
 
   const row = [
-    profile_id,                 // A profile_id
-    phone,                      // B phone
-    temp.name || "",            // C name
-    temp.surname || "",         // D surname
-    temp.gender || "",          // E gender
-    temp.date_of_birth || "",   // F date_of_birth
-    temp.religion || "",        // G religion
-    temp.height || "",          // H height
-    temp.caste || "",           // I caste
-    temp.city || "",            // J city
-    temp.district || "",        // K district
-    temp.education || "",       // L education
-    temp.job || "",             // M job
-    temp.income_annual || "",   // N income_annual
-    temp.photo_url || "",       // O photo_url
-    "PENDING",                  // P status
-    createdAt,                  // Q created_at
+    profile_id,
+    phone,
+    temp.name || "",
+    temp.surname || "",
+    temp.gender || "",
+    temp.date_of_birth || "",
+    temp.religion || "",
+    temp.height || "",
+    temp.caste || "",
+    temp.city || "",
+    temp.district || "",
+    temp.education || "",
+    temp.job || "",
+    temp.income_annual || "",
+    temp.photo_url || "",
+    "PENDING",
+    createdAt,
   ];
 
   await sheets.spreadsheets.values.append({
@@ -499,9 +464,9 @@ function getLatestApprovedProfile(profiles) {
 // B from_profile_id
 // C to_profile_id
 // D status
-// E created_at (ISO)
+// E created_at
 // F type (DETAILS/INTEREST)
-// G viewer_phone (phone number)
+// G viewer_phone
 
 async function getAllRequestsRows() {
   const sheets = await getSheetsClient();
@@ -520,7 +485,7 @@ function requestRowToObj(row, rowIndex1Based) {
     to_profile_id: row?.[2] || "",
     status: (row?.[3] || "").toUpperCase(),
     created_at: row?.[4] || "",
-    type: (row?.[5] || "").toUpperCase(), // DETAILS / INTEREST
+    type: (row?.[5] || "").toUpperCase(),
     viewer_phone: row?.[6] || "",
   };
 }
@@ -546,7 +511,7 @@ async function updateRequestStatus(rowIndex1Based, newStatus) {
   const sheets = await getSheetsClient();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: `${REQUESTS_TAB}!D${rowIndex1Based}`, // status column D
+    range: `${REQUESTS_TAB}!D${rowIndex1Based}`,
     valueInputOption: "RAW",
     requestBody: { values: [[newStatus]] },
   });
@@ -584,6 +549,9 @@ async function notifyAdminNewProfile(profileId, phone, temp) {
   const msg =
 `🆕 New Registration (PENDING)
 
+Brand: ${BRAND_NAME}
+Tagline: ${BRAND_TAGLINE}
+
 Profile ID: ${profileId}
 Phone: ${phone}
 Name: ${(temp?.name || "")} ${(temp?.surname || "")}
@@ -603,7 +571,7 @@ Income: ${temp?.income_annual || ""}
   await sendText(ADMIN_PHONE, msg);
 }
 
-// ===================== Matching / Search Helpers =====================
+// ===================== Matching Helpers =====================
 function educationRank(edu) {
   const e = (edu || "").toLowerCase();
   if (e.includes("phd") || e.includes("doctor")) return 4;
@@ -616,13 +584,6 @@ function parseIncomeLPA(incomeText) {
   const m = (incomeText || "").match(/(\d+(\.\d+)?)/);
   if (!m) return null;
   return parseFloat(m[1]);
-}
-
-function oppositeGender(g) {
-  const x = (g || "").toLowerCase();
-  if (x === "male") return "female";
-  if (x === "female") return "male";
-  return "";
 }
 
 function buildProfileCardLine(p) {
@@ -703,7 +664,6 @@ app.get("/webhook", (req, res) => {
 
 // ===================== Webhook Receive (POST) =====================
 app.post("/webhook", async (req, res) => {
-  // Reply fast to Meta
   res.sendStatus(200);
 
   try {
@@ -711,13 +671,10 @@ app.post("/webhook", async (req, res) => {
     const msg = value?.messages?.[0];
     if (!msg) return;
 
-    if (isDuplicateMsg(msg.id)) return;
-
     const from = normalizePhone(msg.from);
-    const msgType = msg.type; // "text", "image", etc.
+    const msgType = msg.type;
     const text = (msg.text?.body || "").trim();
 
-    // Load state early
     const st = await getState(from);
     const temp = safeJsonParse(st.temp_data || "{}", {});
     const { cmd, args } = parseCommand(text);
@@ -751,19 +708,16 @@ app.post("/webhook", async (req, res) => {
       await updateProfileStatus(prof.rowIndex, newStatus);
 
       if (cmd === "APPROVE") {
-        // ✅ Brand message only here (per your instruction)
         await sendText(
           prof.phone,
-          `🎉 Your profile *${profileId}* has been *APPROVED*.
-
-🌸 *${BRAND_NAME}*
-${BRAND_TAGLINE}
-
-Type *MATCHES* to browse profiles.`
+          `🎉 Your profile *${profileId}* has been *APPROVED*.\n\n${BRAND_NAME}\n${BRAND_TAGLINE}\n\nType *MATCHES* to browse profiles.`
         );
         await sendText(from, `✅ Approved ${profileId}`);
       } else {
-        await sendText(prof.phone, `❌ Your profile *${profileId}* was *REJECTED*.\nYou can create a new profile after deleting this one.`);
+        await sendText(
+          prof.phone,
+          `❌ Your profile *${profileId}* was *REJECTED*.\n\n${BRAND_NAME}\n${BRAND_TAGLINE}\n\nYou can create a new profile after deleting this one.`
+        );
         await sendText(from, `✅ Rejected ${profileId}`);
       }
       return;
@@ -826,25 +780,22 @@ Type *MATCHES* to browse profiles.`
         user_caste: active.caste,
         target_gender: targetGender,
 
-        cityScope: null, // SAME_CITY / ANY
+        cityScope: null,
         ageMin: null,
         ageMax: null,
-        casteScope: null, // SAME_CASTE / ANY
-        eduMinRank: null, // null / 2 / 3
-        incomeMin: null, // number
+        casteScope: null,
+        eduMinRank: null,
+        incomeMin: null,
         results: [],
         page: 0,
       };
 
       await setState(from, "SEARCH_CITY_SCOPE", temp);
-      await sendText(
-        from,
-        `Search preferences:\n1) Same City (${active.city})\n2) Any City in Maharashtra\n\nReply 1 or 2`
-      );
+      await sendText(from, `Search preferences:\n1) Same City (${active.city})\n2) Any City in Maharashtra\n\nReply 1 or 2`);
       return;
     }
 
-    // NEXT / PREV for search results
+    // NEXT / PREV
     if (cmd === "NEXT" || cmd === "PREV") {
       if (!temp.search || !Array.isArray(temp.search.results)) {
         await sendText(from, "Type *MATCHES* to start searching.");
@@ -976,7 +927,7 @@ If interested: INTEREST ${target.profile_id}`;
       return;
     }
 
-    // ACCEPT / REJECT (receiver decides)
+    // ACCEPT / REJECT
     if (cmd === "ACCEPT" || cmd === "REJECT") {
       const interestedProfileId = args[0];
       if (!interestedProfileId) {
@@ -1028,10 +979,7 @@ If interested: INTEREST ${target.profile_id}`;
 
       await sendText(from, `✅ Accepted interest from ${interestedProfileId}.\nWe are sharing contact details now.`);
 
-      await sendText(
-        from,
-        `📞 Contact shared:\nProfile: ${interestedProfileId}\nPhone: ${senderProfile.phone}`
-      );
+      await sendText(from, `📞 Contact shared:\nProfile: ${interestedProfileId}\nPhone: ${senderProfile.phone}`);
 
       await sendText(
         senderProfile.phone,
@@ -1041,7 +989,7 @@ If interested: INTEREST ${target.profile_id}`;
       return;
     }
 
-    // ===================== SEARCH STEPS (guided filters) =====================
+    // ===================== SEARCH STEPS =====================
     if (st.step === "SEARCH_CITY_SCOPE") {
       if (!text) return;
       if (text !== "1" && text !== "2") {
@@ -1051,7 +999,7 @@ If interested: INTEREST ${target.profile_id}`;
       temp.search.cityScope = text === "1" ? "SAME_CITY" : "ANY";
 
       await setState(from, "SEARCH_AGE_RANGE", temp);
-      await sendText(from, "Preferred age range? Example: 23-30\nType SKIP for default (±3 years).");
+      await sendText(from, "Preferred age range? Example: 23-30\nType SKIP for default (21-35).");
       return;
     }
 
@@ -1147,7 +1095,7 @@ If interested: INTEREST ${target.profile_id}`;
       return;
     }
 
-    // ===================== REGISTRATION FLOW (JOIN/NEWPROFILE) =====================
+    // ===================== REGISTRATION FLOW =====================
     if (text && (cmd === "JOIN" || cmd === "NEWPROFILE")) {
       const existing = await findProfilesByPhone(from);
       if (existing.length >= MAX_PROFILES_PER_PHONE) {
@@ -1160,25 +1108,15 @@ If interested: INTEREST ${target.profile_id}`;
       }
 
       await setState(from, "ASK_NAME", {});
-      // ✅ Brand welcome message only here (per your instruction)
-      await sendText(
-        from,
-        `🌸 *${BRAND_NAME}*
-${BRAND_WELCOME_LINE}
-${BRAND_TAGLINE}
-
-Reply with your *Name*:`
-      );
+      await sendText(from, `✅ ${WELCOME_MSG}\n\nReply with your *Name*:`);
       return;
     }
 
-    // If no step and not a command, guide
     if (!st.step) {
       if (text) await sendText(from, "Type *JOIN* to create your profile.\nType *MATCHES* after approval to browse.");
       return;
     }
 
-    // ---- Registration Steps (text based) ----
     if (st.step === "ASK_NAME") {
       if (!text) return;
       temp.name = text;
@@ -1290,7 +1228,7 @@ Reply with your *Name*:`
       return;
     }
 
-    // ---- Photo step (image based) ----
+    // ---- Photo step ----
     if (st.step === "ASK_PHOTO") {
       if (msgType !== "image") {
         await sendText(from, "Please send a *PHOTO* (not text). Photo is mandatory ✅");
@@ -1310,11 +1248,11 @@ Reply with your *Name*:`
 
       let permanentLink = "";
       try {
-        const { bytes, contentType } = await downloadMetaMediaBytes(metaUrl);
+        const { bytes } = await downloadMetaMediaBytes(metaUrl);
         const filename = `MH_${from}_${Date.now()}.jpg`;
-        permanentLink = await uploadPhotoToDrive(bytes, contentType, filename);
+        permanentLink = await uploadPhotoToCloudinary(bytes, filename);
       } catch (e) {
-        console.error("Drive upload error:", e?.response?.data || e.message);
+        console.error("Photo upload error:", e?.response?.data || e.message);
       }
 
       if (!permanentLink) {
@@ -1331,7 +1269,7 @@ Reply with your *Name*:`
 
       await sendText(
         from,
-        `✅ Registration completed!\nYour Profile ID: *${profileId}*\n\nStatus: *PENDING approval*.\nYou will get message within 24 hours after approval.`
+        `✅ Registration completed!\nYour Profile ID: *${profileId}*\n\n${BRAND_NAME}\n${BRAND_TAGLINE}\n\nStatus: *PENDING approval*.\nYou will get message after approval.`
       );
       return;
     }
