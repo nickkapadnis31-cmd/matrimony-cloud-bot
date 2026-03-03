@@ -110,6 +110,7 @@ async function createProfile(phone, temp) {
     temp.education || "",
     temp.job || "",
     temp.income_annual || "",
+    temp.photo_url || "",
     "PENDING",
     now,
   ];
@@ -229,7 +230,7 @@ if (text.toLowerCase().startsWith("approve")) {
       // Update status column (change index if needed)
       await sheets.spreadsheets.values.update({
         spreadsheetId: SHEET_ID,
-        range: `profiles!N${i + 1}`,
+        range: `profiles!P${i + 1}`,
         valueInputOption: "RAW",
         requestBody: {
           values: [["APPROVED"]],
@@ -354,18 +355,55 @@ You can now browse matches.`);
     }
 
     if (st.step === "ASK_INCOME") {
-      temp.income_annual = text;
+  temp.income_annual = text;
+  await setState(from, "ASK_PHOTO", temp);
+  await sendText(from, "Please send *one clear photo* (selfie or portrait). Photo is mandatory ✅");
+  return;
+}
 
-      const profileId = await createProfile(from, temp);
-      await notifyAdminNewprofile(profileId,from, temp);
-      await setState(from, "", {}); // clear
+   if (st.step === "ASK_PHOTO") {
+  // If user did not send an image
+  if (msg.type !== "image") {
+    await sendText(from, "Please send a *PHOTO* (not text). Photo is mandatory ✅");
+    return;
+  }
 
-      await sendText(
-        from,
-        `✅ Registration completed!\nYour Profile ID: *${profileId}*\n\nStatus: *PENDING approval*.\nYou will get message within 24 hours after approval.`
-      );
-      return;
-    }
+  // Get media id from message
+  const mediaId = msg.image?.id;
+  if (!mediaId) {
+    await sendText(from, "Photo not received properly. Please send again.");
+    return;
+  }
+
+  // Get media URL from Meta
+  const mediaUrlRes = await axios.get(
+    `https://graph.facebook.com/v20.0/${mediaId}`,
+    { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` } }
+  );
+
+  const mediaUrl = mediaUrlRes.data?.url;
+  if (!mediaUrl) {
+    await sendText(from, "Could not read photo URL. Please send again.");
+    return;
+  }
+
+  temp.photo_url = mediaUrl;
+
+  // Now create profile (with photo_url)
+  const profileId = await createProfile(from, temp);
+
+  // Notify admin
+  await notifyAdminNewProfile(profileId, from, temp);
+
+  // Clear state
+  await setState(from, "", {});
+
+  await sendText(
+    from,
+    `✅ Registration completed!\nYour Profile ID: *${profileId}*\n\nStatus: *PENDING approval*.\nYou will get message within 24 hours after approval.`
+  );
+  return;
+} 
   } catch (err) {
     console.error("Webhook error:", err?.response?.data || err.message);
   }
