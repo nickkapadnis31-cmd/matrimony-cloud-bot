@@ -179,14 +179,14 @@ app.post("/webhook", async (req, res) => {
 if (text.toLowerCase().startsWith("approve")) {
 
   if (!isAdmin(from)) {
-    await sendWhatsAppMessage(from, "❌ Only admin can approve profiles.");
+    await sendText(from, "❌ Only admin can approve profiles.");
     return res.sendStatus(200);
   }
 
   const profileId = text.split(" ")[1]; // approve MH-8104
 
   if (!profileId) {
-    await sendWhatsAppMessage(from, "Please send: approve MH-XXXX");
+    await sendText(from, "Please send: approve MH-XXXX");
     return res.sendStatus(200);
   }
 
@@ -213,20 +213,20 @@ if (text.toLowerCase().startsWith("approve")) {
 
       const userPhone = rows[i][1]; // assuming column B has phone
 
-      await sendWhatsAppMessage(userPhone,
+      await sendText(userPhone,
         `🎉 Congratulations!
 Your Profile ID *${profileId}* has been APPROVED.
 
 You can now browse matches.`);
 
-      await sendWhatsAppMessage(from,
+      await sendText(from,
         `✅ Profile ${profileId} approved successfully.`);
 
       return res.sendStatus(200);
     }
   }
 
-  await sendWhatsAppMessage(from, "Profile ID not found.");
+  await sendText(from, "Profile ID not found.");
   return res.sendStatus(200);
 }
     // Only handle text messages
