@@ -193,7 +193,7 @@ if (text.toLowerCase().startsWith("approve")) {
   const sheets = await getSheetsClient();
   const resData = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: "Sheet1!A:Z",
+    range: "requests!A:Z",
   });
 
   const rows = resData.data.values || [];
@@ -204,7 +204,7 @@ if (text.toLowerCase().startsWith("approve")) {
       // Update status column (change index if needed)
       await sheets.spreadsheets.values.update({
         spreadsheetId: SHEET_ID,
-        range: `Sheet1!N${i + 1}`,
+        range: `requests!N${i + 1}`,
         valueInputOption: "RAW",
         requestBody: {
           values: [["APPROVED"]],
