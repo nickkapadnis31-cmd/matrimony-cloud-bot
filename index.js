@@ -14,6 +14,7 @@
 
 require("dotenv").config();
 
+const cloudinary = require("cloudinary").v2;
 const { Readable } = require("stream");
 const express = require("express");
 const axios = require("axios");
@@ -29,6 +30,11 @@ const BRAND_TAGLINE = "नवीन नाती – विश्वासान
 const BRAND_WELCOME_LINE = "विश्वासाने जुळवा योग्य स्थळ.";
 
 // ===================== ENV =====================
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "",
+  api_key: process.env.CLOUDINARY_API_KEY || "",
+  api_secret: process.env.CLOUDINARY_API_SECRET || "",
+});
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "";
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || "";
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || "";
@@ -240,41 +246,31 @@ async function downloadMetaMediaBytes(mediaUrl) {
 
 // ===================== Google Drive Photo Storage =====================
 // ===================== Google Drive Photo Storage =====================
-async function uploadPhotoToDrive(bytes, contentType, filename) {
-  if (!DRIVE_FOLDER_ID) return "";
-
-  const drive = await getDriveClient();
-
+async function uploadPhotoToCloudinary(bytes, filename = "") {
   try {
-    // Convert bytes -> Buffer -> Readable stream (IMPORTANT FIX)
     const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
-    const stream = Readable.from(buffer);
 
-    const createRes = await drive.files.create({
-      requestBody: {
-        name: filename,
-        parents: [DRIVE_FOLDER_ID],
-      },
-      media: {
-        mimeType: contentType || "image/jpeg",
-        body: stream, // MUST be stream (fixes pipe error)
-      },
-      fields: "id",
+    return await new Promise((resolve) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: "navin_nati_profiles",
+          resource_type: "image",
+          public_id: filename ? filename.replace(/\.[^/.]+$/, "") : undefined,
+          overwrite: false,
+        },
+        (error, result) => {
+          if (error) {
+            console.error("Cloudinary upload error:", error);
+            return resolve("");
+          }
+          resolve(result?.secure_url || "");
+        }
+      );
+
+      stream.end(buffer);
     });
-
-    const fileId = createRes.data?.id;
-    if (!fileId) return "";
-
-    // Make file public
-    await drive.permissions.create({
-      fileId,
-      requestBody: { role: "reader", type: "anyone" },
-    });
-
-    // WhatsApp-friendly direct link
-    return `https://drive.google.com/uc?export=download&id=${fileId}`;
   } catch (err) {
-    console.error("Drive upload error:", err?.response?.data || err.message);
+    console.error("Cloudinary error:", err?.message || err);
     return "";
   }
 }
