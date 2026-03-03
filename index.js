@@ -102,6 +102,7 @@ async function createProfile(phone, temp) {
     temp.surname || "",
     temp.gender || "",
     temp.date_of_birth || "",
+    temp.height || "",
     temp.religion || "",
     temp.caste || "",
     temp.city || "",
@@ -297,12 +298,18 @@ You can now browse matches.`);
       return;
     }
 
-    if (st.step === "ASK_DOB") {
-      temp.date_of_birth = text;
-      await setState(from, "ASK_RELIGION", temp);
-      await sendText(from, "Religion? (Example: Hindu / Muslim / Jain / Buddhist):");
-      return;
-    }
+   if (st.step === "ASK_DOB") {
+  temp.date_of_birth = text;
+  await setState(from, "ASK_HEIGHT", temp);
+  await sendText(from, "Height? (Example: 5'6 or 168 cm):");
+  return;
+}
+    if (st.step === "ASK_HEIGHT") {
+  temp.height = text;
+  await setState(from, "ASK_RELIGION", temp);
+  await sendText(from, "Religion? (Example: Hindu / Muslim / Jain / Buddhist):");
+  return;
+}
 
     if (st.step === "ASK_RELIGION") {
       temp.religion = text;
