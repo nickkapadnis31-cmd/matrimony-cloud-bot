@@ -999,7 +999,7 @@ If interested: INTEREST ${target.profile_id}`;
       temp.search.cityScope = text === "1" ? "SAME_CITY" : "ANY";
 
       await setState(from, "SEARCH_AGE_RANGE", temp);
-      await sendText(from, "Preferred age range? Example: 23-30\nType SKIP for default (21-35).");
+      await sendText(from, "Preferred age range? Example: 23-30\nType SKIP for default (21-40).");
       return;
     }
 
@@ -1008,7 +1008,7 @@ If interested: INTEREST ${target.profile_id}`;
 
       if (text.toUpperCase() === "SKIP") {
         temp.search.ageMin = 21;
-        temp.search.ageMax = 35;
+        temp.search.ageMax = 40;
       } else {
         const m = text.match(/^(\d{2})-(\d{2})$/);
         if (!m) {
