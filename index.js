@@ -1,7 +1,6 @@
 // index.js — Navin Nati (नवीन नाती) WhatsApp Bot (Meta Cloud API + Google Sheets + Cloudinary)
 //
 // Tagline: “नवीन नाती – विश्वासाने जोडलेली.”
-// Welcome msg: Navin Nati (नवीन नाती)\nविश्वासाने जुळवा योग्य स्थळ
 //
 // Features:
 // - Max 2 profiles per phone (JOIN/NewProfile blocked if 2)
@@ -14,6 +13,28 @@
 // - DETAILS MH-XXXX: max 5/month; sends WhatsApp image + details
 // - INTEREST MH-XXXX: max 5/month; notifies target; ACCEPT/REJECT to share contact
 // - requests sheet columns: A req_id, B from_profile_id, C to_profile_id, D status, E created_at, F type, G viewer_phone
+//
+// PROFILES SHEET (A–T) columns:
+// A profile_id
+// B phone
+// C name
+// D surname
+// E gender
+// F date_of_birth
+// G religion
+// H height
+// I caste
+// J native_place
+// K district
+// L work_city
+// M work_district
+// N education
+// O job
+// P job_title
+// Q income_annual
+// R photo_url
+// S status
+// T created_at
 
 require("dotenv").config();
 
@@ -26,46 +47,7 @@ const cloudinary = require("cloudinary").v2;
 const app = express();
 app.use(express.json());
 
-// ===================== ENV =====================
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "";
-const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || "";
-const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || "";
-const SHEET_ID = process.env.GOOGLE_SHEET_ID || "";
-const ADMIN_PHONE = normalizePhone(process.env.ADMIN_PHONE || "");
-
-const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || "";
-const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "";
-const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET || "";
-
-if (!VERIFY_TOKEN || !WHATSAPP_TOKEN || !PHONE_NUMBER_ID || !SHEET_ID) {
-  console.warn("⚠️ Missing required env vars. Check VERIFY_TOKEN, WHATSAPP_TOKEN, PHONE_NUMBER_ID, GOOGLE_SHEET_ID.");
-}
-if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
-  console.warn("⚠️ Missing GOOGLE_SERVICE_ACCOUNT_JSON env var.");
-}
-if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
-  console.warn("⚠️ Missing Cloudinary env vars. Check CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET.");
-}
-
-// ===================== Branding =====================
-const BRAND_NAME = "Navin Nati (नवीन नाती)";
-const BRAND_TAGLINE = "नवीन नाती – विश्वासाने जोडलेली.";
-const WELCOME_MSG = `${BRAND_NAME}\विश्वासाने जुळवा योग्य स्थळ`;
-
-// ===================== CONSTANTS =====================
-const PROFILE_TAB = "profiles";
-const STATE_TAB = "state";
-const REQUESTS_TAB = "requests";
-
-const MAX_PROFILES_PER_PHONE = 2;
-const MIN_AGE = 18;
-
-const MAX_DETAILS_PER_MONTH = 5;
-const MAX_INTEREST_PER_MONTH = 5;
-
-const RESULTS_PAGE_SIZE = 5;
-
-// ===================== Utils =====================
+// ===================== Utils (top, used by env) =====================
 function normalizePhone(p) {
   return (p || "").toString().replace(/\D/g, "");
 }
@@ -84,12 +66,6 @@ function safeJsonParse(s, fallback) {
   } catch {
     return fallback;
   }
-}
-
-function isAdmin(from) {
-  const f = normalizePhone(from);
-  if (!ADMIN_PHONE) return false;
-  return f === ADMIN_PHONE || f.slice(-10) === ADMIN_PHONE.slice(-10);
 }
 
 function parseCommand(text) {
@@ -120,6 +96,85 @@ function oppositeGender(g) {
   if (x === "female") return "male";
   return "";
 }
+
+function cleanLower(v) {
+  return String(v || "").trim().toLowerCase();
+}
+function cleanUpper(v) {
+  return String(v || "").trim().toUpperCase();
+}
+
+// ===================== ENV =====================
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "";
+const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || "";
+const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || "";
+const SHEET_ID = process.env.GOOGLE_SHEET_ID || "";
+const ADMIN_PHONE = normalizePhone(process.env.ADMIN_PHONE || "");
+
+const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || "";
+const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "";
+const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET || "";
+
+if (!VERIFY_TOKEN || !WHATSAPP_TOKEN || !PHONE_NUMBER_ID || !SHEET_ID) {
+  console.warn("⚠️ Missing required env vars. Check VERIFY_TOKEN, WHATSAPP_TOKEN, PHONE_NUMBER_ID, GOOGLE_SHEET_ID.");
+}
+if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+  console.warn("⚠️ Missing GOOGLE_SERVICE_ACCOUNT_JSON env var.");
+}
+if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+  console.warn("⚠️ Missing Cloudinary env vars. Check CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET.");
+}
+
+function isAdmin(from) {
+  const f = normalizePhone(from);
+  if (!ADMIN_PHONE) return false;
+  return f === ADMIN_PHONE || f.slice(-10) === ADMIN_PHONE.slice(-10);
+}
+
+// ===================== Branding =====================
+const BRAND_NAME = "Navin Nati (नवीन नाती)";
+const BRAND_TAGLINE = "नवीन नाती – विश्वासाने जोडलेली.";
+
+const WELCOME_MSG =
+`${BRAND_NAME}
+
+विश्वासाने जुळवा योग्य स्थळ ❤️
+Find the right match with trust.
+
+🔹 प्रोफाइल तयार करण्यासाठी *JOIN* लिहा
+Type *JOIN* to create your profile.
+
+🔹 स्थळ शोधण्यासाठी *MATCHES* लिहा
+Type *MATCHES* to find suitable matches.
+
+⏳ तुमचे प्रोफाइल *Approved* झाल्यानंतरच तुम्ही स्थळ शोधू शकता.
+You can search matches only after your profile is approved.`;
+
+// pending message for MATCHES/DETAILS/INTEREST etc.
+const PENDING_MSG =
+`${BRAND_NAME}
+
+तुमचे प्रोफाइल अजून *Approved* झालेले नाही.
+Your profile is not approved yet.
+
+⏳ कृपया Admin approval साठी थोडा वेळ प्रतीक्षा करा.
+Please wait for admin approval.
+
+Approved झाल्यानंतर स्थळ शोधण्यासाठी *MATCHES* लिहा.
+Type *MATCHES* after approval.`;
+
+// ===================== CONSTANTS =====================
+const PROFILE_TAB = "profiles";
+const STATE_TAB = "state";
+const REQUESTS_TAB = "requests";
+
+const MAX_PROFILES_PER_PHONE = 2;
+const MIN_AGE = 18;
+
+const MAX_DETAILS_PER_MONTH = 5;
+const MAX_INTEREST_PER_MONTH = 5;
+
+const RESULTS_PAGE_SIZE = 5;
 
 // ===================== Cloudinary =====================
 cloudinary.config({
@@ -294,56 +349,46 @@ async function setState(phone, step, tempObj) {
   }
 }
 
-// ===================== Sheets: PROFILES =====================
-// profiles columns A-Q:
-// A profile_id
-// B phone
-// C name
-// D surname
-// E gender
-// F date_of_birth
-// G religion
-// H height
-// I caste
-// J city
-// K district
-// L education
-// M job
-// N income_annual
-// O photo_url
-// P status
-// Q created_at
-
+// ===================== Sheets: PROFILES (A–T) =====================
 async function getAllProfilesRows() {
   const sheets = await getSheetsClient();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${PROFILE_TAB}!A:Q`,
+    range: `${PROFILE_TAB}!A:T`,
   });
   return res.data.values || [];
 }
 
 function profileRowToObj(row, rowIndex1Based) {
-  return {
+  // A–T mapping
+  const obj = {
     rowIndex: rowIndex1Based,
     profile_id: row?.[0] || "",
     phone: row?.[1] || "",
     name: row?.[2] || "",
     surname: row?.[3] || "",
-    gender: (row?.[4] || "").toLowerCase(),
+    gender: cleanLower(row?.[4] || ""),
     date_of_birth: row?.[5] || "",
     religion: row?.[6] || "",
     height: row?.[7] || "",
     caste: row?.[8] || "",
-    city: row?.[9] || "",
+    native_place: row?.[9] || "",
     district: row?.[10] || "",
-    education: row?.[11] || "",
-    job: row?.[12] || "",
-    income_annual: row?.[13] || "",
-    photo_url: row?.[14] || "",
-    status: (row?.[15] || "").toUpperCase(),
-    created_at: row?.[16] || "",
+    work_city: row?.[11] || "",
+    work_district: row?.[12] || "",
+    education: row?.[13] || "",
+    job: row?.[14] || "",
+    job_title: row?.[15] || "",
+    income_annual: row?.[16] || "",
+    photo_url: row?.[17] || "",
+    status: cleanUpper(row?.[18] || ""),
+    created_at: row?.[19] || "",
   };
+
+  // Backward-compat alias (so old logic still works safely)
+  obj.city = obj.native_place;
+
+  return obj;
 }
 
 async function findProfilesByPhone(phone) {
@@ -366,10 +411,11 @@ async function findProfileById(profileId) {
 }
 
 async function updateProfileStatus(rowIndex1Based, newStatus) {
+  // status is column S now
   const sheets = await getSheetsClient();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: `${PROFILE_TAB}!P${rowIndex1Based}`,
+    range: `${PROFILE_TAB}!S${rowIndex1Based}`,
     valueInputOption: "RAW",
     requestBody: { values: [[newStatus]] },
   });
@@ -422,28 +468,31 @@ async function createProfile(phone, temp) {
   const createdAt = nowISO();
 
   const row = [
-    profile_id,
-    phone,
-    temp.name || "",
-    temp.surname || "",
-    temp.gender || "",
-    temp.date_of_birth || "",
-    temp.religion || "",
-    temp.height || "",
-    temp.caste || "",
-    temp.city || "",
-    temp.district || "",
-    temp.education || "",
-    temp.job || "",
-    temp.income_annual || "",
-    temp.photo_url || "",
-    "PENDING",
-    createdAt,
+    profile_id,                 // A
+    phone,                      // B
+    temp.name || "",            // C
+    temp.surname || "",         // D
+    temp.gender || "",          // E
+    temp.date_of_birth || "",   // F
+    temp.religion || "",        // G
+    temp.height || "",          // H
+    temp.caste || "",           // I
+    temp.native_place || "",    // J
+    temp.district || "",        // K
+    temp.work_city || "",       // L
+    temp.work_district || "",   // M
+    temp.education || "",       // N
+    temp.job || "",             // O
+    temp.job_title || "",       // P
+    temp.income_annual || "",   // Q
+    temp.photo_url || "",       // R
+    "PENDING",                  // S
+    createdAt,                  // T
   ];
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: `${PROFILE_TAB}!A:Q`,
+    range: `${PROFILE_TAB}!A:T`,
     valueInputOption: "RAW",
     requestBody: { values: [row] },
   });
@@ -453,21 +502,12 @@ async function createProfile(phone, temp) {
 
 function getLatestApprovedProfile(profiles) {
   for (let i = profiles.length - 1; i >= 0; i--) {
-    if (profiles[i].status === "APPROVED") return profiles[i];
+    if (cleanUpper(profiles[i].status) === "APPROVED") return profiles[i];
   }
   return null;
 }
 
 // ===================== Sheets: REQUESTS =====================
-// requests columns A-G:
-// A req_id
-// B from_profile_id
-// C to_profile_id
-// D status
-// E created_at
-// F type (DETAILS/INTEREST)
-// G viewer_phone
-
 async function getAllRequestsRows() {
   const sheets = await getSheetsClient();
   const res = await sheets.spreadsheets.values.get({
@@ -483,9 +523,9 @@ function requestRowToObj(row, rowIndex1Based) {
     req_id: row?.[0] || "",
     from_profile_id: row?.[1] || "",
     to_profile_id: row?.[2] || "",
-    status: (row?.[3] || "").toUpperCase(),
+    status: cleanUpper(row?.[3] || ""),
     created_at: row?.[4] || "",
-    type: (row?.[5] || "").toUpperCase(),
+    type: cleanUpper(row?.[5] || ""),
     viewer_phone: row?.[6] || "",
   };
 }
@@ -560,9 +600,13 @@ DOB: ${temp?.date_of_birth || ""}
 Height: ${temp?.height || ""}
 Religion: ${temp?.religion || ""}
 Caste: ${temp?.caste || ""}
-City: ${temp?.city || ""}, ${temp?.district || ""}
+
+Native Place: ${temp?.native_place || ""}, ${temp?.district || ""}
+Work Location: ${temp?.work_city || ""}, ${temp?.work_district || ""}
+
 Education: ${temp?.education || ""}
-Job: ${temp?.job || ""}
+Job Type: ${temp?.job || ""}
+Job Title: ${temp?.job_title || ""}
 Income: ${temp?.income_annual || ""}
 
 ✅ Approve: approve ${profileId}
@@ -589,29 +633,35 @@ function parseIncomeLPA(incomeText) {
 function buildProfileCardLine(p) {
   const age = calcAgeFromDobDDMMYYYY(p.date_of_birth);
   const ageTxt = age !== null ? `${age}` : "NA";
-  return `• ${p.profile_id} | Age: ${ageTxt} | ${p.city} (${p.district}) | ${p.education} | ${p.job}`;
+
+  const nativeTxt = p.native_place ? `${p.native_place}` : "NA";
+  const workTxt = p.work_city ? `${p.work_city}` : "NA";
+  const jobTitleTxt = p.job_title ? p.job_title : (p.job || "");
+
+  return `• ${p.profile_id} | Age: ${ageTxt} | Native: ${nativeTxt} | Work: ${workTxt} | ${p.education} | ${jobTitleTxt}`;
 }
 
 function applyFiltersToApprovedProfiles(allProfiles, opts) {
   const out = [];
 
   for (const p of allProfiles) {
-    if (p.status !== "APPROVED") continue;
+    if (cleanUpper(p.status) !== "APPROVED") continue;
 
     const age = calcAgeFromDobDDMMYYYY(p.date_of_birth);
     if (age === null || age < MIN_AGE) continue;
 
-    if (opts.targetGender && (p.gender || "").toLowerCase() !== opts.targetGender) continue;
+    if (opts.targetGender && cleanLower(p.gender) !== cleanLower(opts.targetGender)) continue;
 
+    // "cityScope" kept for backward compatibility; now it means native_place scope
     if (opts.cityScope === "SAME_CITY" && opts.userCity) {
-      if ((p.city || "").toLowerCase() !== (opts.userCity || "").toLowerCase()) continue;
+      if (cleanLower(p.native_place) !== cleanLower(opts.userCity)) continue;
     }
 
     if (opts.ageMin !== null && age < opts.ageMin) continue;
     if (opts.ageMax !== null && age > opts.ageMax) continue;
 
     if (opts.casteScope === "SAME_CASTE" && opts.userCaste) {
-      if ((p.caste || "").toLowerCase() !== (opts.userCaste || "").toLowerCase()) continue;
+      if (cleanLower(p.caste) !== cleanLower(opts.userCaste)) continue;
     }
 
     if (opts.eduMinRank !== null) {
@@ -664,6 +714,7 @@ app.get("/webhook", (req, res) => {
 
 // ===================== Webhook Receive (POST) =====================
 app.post("/webhook", async (req, res) => {
+  // Reply fast to Meta
   res.sendStatus(200);
 
   try {
@@ -710,7 +761,7 @@ app.post("/webhook", async (req, res) => {
       if (cmd === "APPROVE") {
         await sendText(
           prof.phone,
-          `🎉 Your profile *${profileId}* has been *APPROVED*.\n\n${BRAND_NAME}\n${BRAND_TAGLINE}\n\nType *MATCHES* to browse profiles.`
+          `🎉 अभिनंदन! तुमचे प्रोफाइल *${profileId}* *Approved* झाले आहे.\n\n${BRAND_NAME}\n${BRAND_TAGLINE}\n\nस्थळ शोधण्यासाठी *MATCHES* लिहा.\nType *MATCHES* to browse profiles.`
         );
         await sendText(from, `✅ Approved ${profileId}`);
       } else {
@@ -727,7 +778,7 @@ app.post("/webhook", async (req, res) => {
     if (cmd === "MYPROFILES") {
       const profiles = await findProfilesByPhone(from);
       if (!profiles.length) {
-        await sendText(from, "You have no profiles. Type *JOIN* to create one.");
+        await sendText(from, `${WELCOME_MSG}`);
         return;
       }
       const lines = profiles.map((p) => `• ${p.profile_id} (${p.status || "PENDING"})`);
@@ -764,7 +815,7 @@ app.post("/webhook", async (req, res) => {
       const active = getLatestApprovedProfile(profiles);
 
       if (!active) {
-        await sendText(from, "⏳ Your profile is not approved yet. Please wait for approval to browse matches.");
+        await sendText(from, PENDING_MSG);
         return;
       }
 
@@ -776,8 +827,9 @@ app.post("/webhook", async (req, res) => {
 
       temp.search = {
         from_profile_id: active.profile_id,
-        user_city: active.city,
-        user_caste: active.caste,
+        // keeping old key names for safety; now "user_city" means native_place
+        user_city: active.native_place || active.city || "",
+        user_caste: active.caste || "",
         target_gender: targetGender,
 
         cityScope: null,
@@ -791,7 +843,12 @@ app.post("/webhook", async (req, res) => {
       };
 
       await setState(from, "SEARCH_CITY_SCOPE", temp);
-      await sendText(from, `Search preferences:\n1) Same City (${active.city})\n2) Any City in Maharashtra\n\nReply 1 or 2`);
+
+      const native = active.native_place || active.city || "";
+      await sendText(
+        from,
+        `Search preferences:\n1) Same Native Place (${native || "your native place"})\n2) Any Native Place in Maharashtra\n\nReply 1 or 2`
+      );
       return;
     }
 
@@ -828,7 +885,7 @@ app.post("/webhook", async (req, res) => {
       const profiles = await findProfilesByPhone(from);
       const active = getLatestApprovedProfile(profiles);
       if (!active) {
-        await sendText(from, "⏳ Your profile is not approved yet. Please wait for approval to view details.");
+        await sendText(from, PENDING_MSG);
         return;
       }
 
@@ -839,7 +896,7 @@ app.post("/webhook", async (req, res) => {
       }
 
       const target = await findProfileById(profileId);
-      if (!target || target.status !== "APPROVED") {
+      if (!target || cleanUpper(target.status) !== "APPROVED") {
         await sendText(from, "Profile not found / not approved.");
         return;
       }
@@ -859,12 +916,17 @@ ID: ${target.profile_id}
 Name: ${target.name} ${target.surname}
 Gender: ${target.gender}
 Age: ${age !== null ? age : "NA"}
-City: ${target.city}, ${target.district}
+
+Native: ${target.native_place}, ${target.district}
+Work: ${target.work_city}, ${target.work_district}
+
 Religion: ${target.religion}
 Caste: ${target.caste}
 Height: ${target.height}
+
 Education: ${target.education}
-Job: ${target.job}
+Job Type: ${target.job}
+Job Title: ${target.job_title}
 Income: ${target.income_annual}
 
 If interested: INTEREST ${target.profile_id}`;
@@ -888,7 +950,7 @@ If interested: INTEREST ${target.profile_id}`;
       const profiles = await findProfilesByPhone(from);
       const active = getLatestApprovedProfile(profiles);
       if (!active) {
-        await sendText(from, "⏳ Your profile is not approved yet. Please wait for approval to send interest.");
+        await sendText(from, PENDING_MSG);
         return;
       }
 
@@ -899,7 +961,7 @@ If interested: INTEREST ${target.profile_id}`;
       }
 
       const target = await findProfileById(profileId);
-      if (!target || target.status !== "APPROVED") {
+      if (!target || cleanUpper(target.status) !== "APPROVED") {
         await sendText(from, "Profile not found / not approved.");
         return;
       }
@@ -938,7 +1000,7 @@ If interested: INTEREST ${target.profile_id}`;
       const receiverProfiles = await findProfilesByPhone(from);
       const receiverActive = getLatestApprovedProfile(receiverProfiles);
       if (!receiverActive) {
-        await sendText(from, "Your profile is not approved. You cannot accept/reject interests yet.");
+        await sendText(from, PENDING_MSG);
         return;
       }
 
@@ -993,7 +1055,7 @@ If interested: INTEREST ${target.profile_id}`;
     if (st.step === "SEARCH_CITY_SCOPE") {
       if (!text) return;
       if (text !== "1" && text !== "2") {
-        await sendText(from, "Reply 1 (Same City) or 2 (Any City)");
+        await sendText(from, "Reply 1 (Same Native Place) or 2 (Any)");
         return;
       }
       temp.search.cityScope = text === "1" ? "SAME_CITY" : "ANY";
@@ -1077,8 +1139,8 @@ If interested: INTEREST ${target.profile_id}`;
 
       const results = applyFiltersToApprovedProfiles(allProfiles, {
         targetGender: temp.search.target_gender,
-        cityScope: temp.search.cityScope,
-        userCity: temp.search.user_city,
+        cityScope: temp.search.cityScope,   // now native place scope
+        userCity: temp.search.user_city,    // now native place value
         ageMin: temp.search.ageMin,
         ageMax: temp.search.ageMax,
         casteScope: temp.search.casteScope,
@@ -1108,12 +1170,13 @@ If interested: INTEREST ${target.profile_id}`;
       }
 
       await setState(from, "ASK_NAME", {});
-      await sendText(from, `✅ ${WELCOME_MSG}\n\nReply with your *Name*:`);
+      await sendText(from, `${WELCOME_MSG}\n\nReply with your *Name*:\nतुमचे नाव पाठवा`);
       return;
     }
 
+    // If no step and not a command, guide
     if (!st.step) {
-      if (text) await sendText(from, "Type *JOIN* to create your profile.\nType *MATCHES* after approval to browse.");
+      if (text) await sendText(from, WELCOME_MSG);
       return;
     }
 
@@ -1121,7 +1184,7 @@ If interested: INTEREST ${target.profile_id}`;
       if (!text) return;
       temp.name = text;
       await setState(from, "ASK_SURNAME", temp);
-      await sendText(from, "Good. Now reply with your *Surname*:");
+      await sendText(from, "Good. Now reply with your *Surname*:\nआडनाव पाठवा");
       return;
     }
 
@@ -1129,7 +1192,7 @@ If interested: INTEREST ${target.profile_id}`;
       if (!text) return;
       temp.surname = text;
       await setState(from, "ASK_GENDER", temp);
-      await sendText(from, "Gender? Reply *Male* or *Female*:");
+      await sendText(from, "Gender? Reply *Male* or *Female*:\nलिंग: Male / Female");
       return;
     }
 
@@ -1137,12 +1200,12 @@ If interested: INTEREST ${target.profile_id}`;
       if (!text) return;
       const g = text.toLowerCase();
       if (!(g === "male" || g === "female")) {
-        await sendText(from, "Please reply only *Male* or *Female*:");
+        await sendText(from, "Please reply only *Male* or *Female*:\nफक्त Male किंवा Female लिहा");
         return;
       }
       temp.gender = g;
       await setState(from, "ASK_DOB", temp);
-      await sendText(from, "Date of Birth? Format: *DD-MM-YYYY* (example 05-11-1998)");
+      await sendText(from, "Date of Birth? Format: *DD-MM-YYYY* (example 05-11-1998)\nजन्मतारीख: DD-MM-YYYY");
       return;
     }
 
@@ -1160,7 +1223,7 @@ If interested: INTEREST ${target.profile_id}`;
       }
       temp.date_of_birth = text;
       await setState(from, "ASK_HEIGHT", temp);
-      await sendText(from, "Height? (Example: 5'6 or 168 cm):");
+      await sendText(from, "Height? (Example: 5'6 or 168 cm):\nउंची?");
       return;
     }
 
@@ -1168,7 +1231,7 @@ If interested: INTEREST ${target.profile_id}`;
       if (!text) return;
       temp.height = text;
       await setState(from, "ASK_RELIGION", temp);
-      await sendText(from, "Religion? (Example: Hindu / Muslim / Jain / Buddhist):");
+      await sendText(from, "Religion? (Example: Hindu / Muslim / Jain / Buddhist):\nधर्म?");
       return;
     }
 
@@ -1176,31 +1239,64 @@ If interested: INTEREST ${target.profile_id}`;
       if (!text) return;
       temp.religion = text;
       await setState(from, "ASK_CASTE", temp);
-      await sendText(from, "Caste? (Example: Maratha / Brahmin / Kunbi / etc.):");
+      await sendText(from, "Caste? (Example: Maratha / Brahmin / Kunbi / etc.):\nजात?");
       return;
     }
 
     if (st.step === "ASK_CASTE") {
       if (!text) return;
       temp.caste = text;
-      await setState(from, "ASK_CITY", temp);
-      await sendText(from, "City? (Maharashtra only) Example: Pune / Nashik / Mumbai:");
+      await setState(from, "ASK_NATIVE_PLACE", temp);
+      await sendText(
+        from,
+        "तुमचे मूळ गाव कोणते आहे?\nWhat is your native place?\n\nउदा / Example: Satara / Kolhapur / Nandurbar"
+      );
       return;
     }
 
-    if (st.step === "ASK_CITY") {
+    if (st.step === "ASK_NATIVE_PLACE") {
       if (!text) return;
-      temp.city = text;
+      temp.native_place = text;
       await setState(from, "ASK_DISTRICT", temp);
-      await sendText(from, "District? Example: Pune / Nashik / Mumbai Suburban:");
+      await sendText(from, "District? Example: Pune / Nashik / Mumbai Suburban:\nजिल्हा?");
       return;
     }
 
     if (st.step === "ASK_DISTRICT") {
       if (!text) return;
       temp.district = text;
+      await setState(from, "ASK_WORK_CITY", temp);
+      await sendText(
+        from,
+        "सध्या तुम्ही कोणत्या शहरात काम करता?\nWhich city do you currently work in?\n\nउदा / Example: Pune / Mumbai / Nashik\n\nNative आणि Work city एकच असेल तर SAME लिहा.\nIf same as native place, type SAME."
+      );
+      return;
+    }
+
+    if (st.step === "ASK_WORK_CITY") {
+      if (!text) return;
+      if (text.trim().toUpperCase() === "SAME") {
+        temp.work_city = temp.native_place || "";
+      } else {
+        temp.work_city = text;
+      }
+      await setState(from, "ASK_WORK_DISTRICT", temp);
+      await sendText(
+        from,
+        "कामाचा जिल्हा कोणता आहे?\nWhich district is your work location in?\n\nउदा / Example: Pune / Mumbai Suburban / Nashik\n\nमाहित नसेल तर SKIP लिहा.\nIf unknown, type SKIP."
+      );
+      return;
+    }
+
+    if (st.step === "ASK_WORK_DISTRICT") {
+      if (!text) return;
+      if (text.trim().toUpperCase() === "SKIP") {
+        temp.work_district = "";
+      } else {
+        temp.work_district = text;
+      }
       await setState(from, "ASK_EDU", temp);
-      await sendText(from, "Education? (Example: B.Com / BE / MBA):");
+      await sendText(from, "Education? (Example: B.Com / BE / MBA):\nशिक्षण?");
       return;
     }
 
@@ -1208,15 +1304,29 @@ If interested: INTEREST ${target.profile_id}`;
       if (!text) return;
       temp.education = text;
       await setState(from, "ASK_JOB", temp);
-      await sendText(from, "Job/Business? (Example: Engineer / Business / Govt Job):");
+      await sendText(
+        from,
+        "तुमचा व्यवसाय/नोकरी प्रकार काय?\nJob type? (Example: Government / Private / Business)\n\nउदा / Example: Govt / Private / Business"
+      );
       return;
     }
 
     if (st.step === "ASK_JOB") {
       if (!text) return;
       temp.job = text;
+      await setState(from, "ASK_JOB_TITLE", temp);
+      await sendText(
+        from,
+        "तुम्ही नेमके काय काम करता?\nWhat exactly is your job role?\n\nउदा / Example:\nSoftware Engineer\nPolice Constable\nTeacher\nBusiness – Garments"
+      );
+      return;
+    }
+
+    if (st.step === "ASK_JOB_TITLE") {
+      if (!text) return;
+      temp.job_title = text;
       await setState(from, "ASK_INCOME", temp);
-      await sendText(from, "Annual Income? (Example: 5 LPA / 10 LPA / 15 LPA):");
+      await sendText(from, "Annual Income? (Example: 5 LPA / 10 LPA / 15 LPA):\nवार्षिक उत्पन्न?");
       return;
     }
 
@@ -1224,14 +1334,14 @@ If interested: INTEREST ${target.profile_id}`;
       if (!text) return;
       temp.income_annual = text;
       await setState(from, "ASK_PHOTO", temp);
-      await sendText(from, "Please send *one clear photo* (selfie or portrait). Photo is mandatory ✅");
+      await sendText(from, "Please send *one clear photo* (selfie or portrait). Photo is mandatory ✅\nफोटो पाठवा ✅");
       return;
     }
 
     // ---- Photo step ----
     if (st.step === "ASK_PHOTO") {
       if (msgType !== "image") {
-        await sendText(from, "Please send a *PHOTO* (not text). Photo is mandatory ✅");
+        await sendText(from, "Please send a *PHOTO* (not text). Photo is mandatory ✅\nफोटो पाठवा ✅");
         return;
       }
       const mediaId = msg.image?.id;
@@ -1269,7 +1379,7 @@ If interested: INTEREST ${target.profile_id}`;
 
       await sendText(
         from,
-        `✅ Registration completed!\nYour Profile ID: *${profileId}*\n\n${BRAND_NAME}\n${BRAND_TAGLINE}\n\nStatus: *PENDING approval*.\nYou will get message after approval.`
+        `✅ Registration completed!\nYour Profile ID: *${profileId}*\n\n${BRAND_NAME}\n${BRAND_TAGLINE}\n\nStatus: *PENDING approval*.\nYou will get message after approval.\n\nType *MYPROFILES* to view your profiles.`
       );
       return;
     }
