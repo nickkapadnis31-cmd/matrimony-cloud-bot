@@ -50,7 +50,7 @@ if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
 // ===================== Branding =====================
 const BRAND_NAME = "Navin Nati (नवीन नाती)";
 const BRAND_TAGLINE = "नवीन नाती – विश्वासाने जोडलेली.";
-const WELCOME_MSG = `${BRAND_NAME}\nविश्वासाने जुळवा योग्य स्थळ`;
+const WELCOME_MSG = `${BRAND_NAME}\विश्वासाने जुळवा योग्य स्थळ`;
 
 // ===================== CONSTANTS =====================
 const PROFILE_TAB = "profiles";
