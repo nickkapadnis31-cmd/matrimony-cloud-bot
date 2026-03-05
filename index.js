@@ -506,6 +506,20 @@ function getLatestApprovedProfile(profiles) {
   }
   return null;
 }
+function getLatestProfile(profiles) {
+  if (!Array.isArray(profiles) || profiles.length === 0) return null;
+  return profiles[profiles.length - 1]; // latest appended row
+}
+
+const DETAILS_INTEREST_LOCK_MSG =
+`${BRAND_NAME}
+
+⏳ Your profile is not approved yet.
+Please wait for admin approval.
+
+Only APPROVED users can use DETAILS and INTEREST.
+
+${BRAND_TAGLINE}`;
 
 // ===================== Sheets: REQUESTS =====================
 async function getAllRequestsRows() {
@@ -656,7 +670,11 @@ function applyFiltersToApprovedProfiles(allProfiles, opts) {
     if (opts.cityScope === "SAME_CITY" && opts.userCity) {
       if (cleanLower(p.native_place) !== cleanLower(opts.userCity)) continue;
     }
-
+// Work location filter (work city scope)
+if (opts.workCityScope === "SAME_CITY" && opts.userWorkCity) {
+  if (cleanLower(p.work_city) !== cleanLower(opts.userWorkCity)) continue;
+}
+    
     if (opts.ageMin !== null && age < opts.ageMin) continue;
     if (opts.ageMax !== null && age > opts.ageMax) continue;
 
@@ -812,12 +830,15 @@ app.post("/webhook", async (req, res) => {
     // ===================== MATCHES / SEARCH FLOW =====================
     if (cmd === "MATCHES" || cmd === "SEARCH") {
       const profiles = await findProfilesByPhone(from);
-      const active = getLatestApprovedProfile(profiles);
 
-      if (!active) {
-        await sendText(from, PENDING_MSG);
-        return;
-      }
+// If user has no profile
+if (!profiles.length) {
+  await sendText(from, `${WELCOME_MSG}\n\nType *JOIN* to create your profile.`);
+  return;
+}
+
+// allow search even if pending
+const active = getLatestApprovedProfile(profiles) || profiles[profiles.length - 1];
 
       const targetGender = oppositeGender(active.gender);
       if (!targetGender) {
@@ -1138,16 +1159,21 @@ If interested: INTEREST ${target.profile_id}`;
       }
 
       const results = applyFiltersToApprovedProfiles(allProfiles, {
-        targetGender: temp.search.target_gender,
-        cityScope: temp.search.cityScope,   // now native place scope
-        userCity: temp.search.user_city,    // now native place value
-        ageMin: temp.search.ageMin,
-        ageMax: temp.search.ageMax,
-        casteScope: temp.search.casteScope,
-        userCaste: temp.search.user_caste,
-        eduMinRank: temp.search.eduMinRank,
-        incomeMin: temp.search.incomeMin,
-      });
+  targetGender: temp.search.target_gender,
+  cityScope: temp.search.cityScope,
+  userCity: temp.search.user_city,
+
+  // NEW WORK LOCATION FILTER
+  workCityScope: temp.search.workCityScope,
+  userWorkCity: temp.search.user_work_city,
+
+  ageMin: temp.search.ageMin,
+  ageMax: temp.search.ageMax,
+  casteScope: temp.search.casteScope,
+  userCaste: temp.search.user_caste,
+  eduMinRank: temp.search.eduMinRank,
+  incomeMin: temp.search.incomeMin,
+});
 
       temp.search.results = results;
       temp.search.page = 0;
