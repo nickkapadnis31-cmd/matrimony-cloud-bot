@@ -1076,7 +1076,7 @@ If interested: INTEREST ${target.profile_id}`;
     if (st.step === "SEARCH_CITY_SCOPE") {
       if (!text) return;
       if (text !== "1" && text !== "2") {
-        await sendText(from, "Reply 1 (Same Native Place) or 2 (Any)");
+        await sendText(from, "❌ Invalid reply.\nPlease type *1* or *2*.\Or type *STOP* to start again.");
         return;
       }
       temp.search.cityScope = text === "1" ? "SAME_CITY" : "ANY";
@@ -1095,13 +1095,13 @@ If interested: INTEREST ${target.profile_id}`;
       } else {
         const m = text.match(/^(\d{2})-(\d{2})$/);
         if (!m) {
-          await sendText(from, "Send age range like 23-30 or type SKIP.");
+          await sendText(from, "❌ Invalid format.\nPlease send age range like *23-30*.\nOr type *SKIP* for default.\nOr type *STOP* to start again.");
           return;
         }
         const a1 = parseInt(m[1], 10);
         const a2 = parseInt(m[2], 10);
         if (!a1 || !a2 || a1 < MIN_AGE || a2 < MIN_AGE || a1 > a2) {
-          await sendText(from, `Age range invalid. Must be >=${MIN_AGE}. Example: 23-30`);
+          await sendText(from, `❌ Invalid age range.\nMinimum age must be ${MIN_AGE}+.\nExample: *23-30*\nOr type *STOP* to start again.`);
           return;
         }
         temp.search.ageMin = a1;
@@ -1116,7 +1116,7 @@ If interested: INTEREST ${target.profile_id}`;
     if (st.step === "SEARCH_CASTE_SCOPE") {
       if (!text) return;
       if (text !== "1" && text !== "2") {
-        await sendText(from, "Reply 1 (Same caste) or 2 (Any caste)");
+        await sendText(from, "❌ Invalid reply.\nPlease type *1* (Same caste) or *2* (Any caste).\nOr type *STOP* to start again.");
         return;
       }
       temp.search.casteScope = text === "1" ? "SAME_CASTE" : "ANY";
@@ -1129,7 +1129,7 @@ If interested: INTEREST ${target.profile_id}`;
     if (st.step === "SEARCH_EDU_MIN") {
       if (!text) return;
       if (!["1", "2", "3"].includes(text)) {
-        await sendText(from, "Reply 1/2/3 only.");
+        await sendText(from, "❌ Invalid reply.\nPlease type *1*, *2* or *3*.\nOr type *STOP* to start again.");
         return;
       }
       temp.search.eduMinRank = text === "1" ? null : text === "2" ? 2 : 3;
