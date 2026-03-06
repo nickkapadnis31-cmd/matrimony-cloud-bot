@@ -1081,11 +1081,27 @@ If interested: INTEREST ${target.profile_id}`;
       }
       temp.search.cityScope = text === "1" ? "SAME_CITY" : "ANY";
 
-      await setState(from, "SEARCH_AGE_RANGE", temp);
-      await sendText(from, "Preferred age range? Example: 23-30\nType SKIP for default (21-40).");
+      await setState(from, "SEARCH_WORK_CITY_SCOPE", temp);
+await sendText(from, "Work location preference?\n1) Same work city\n2) Any work city\nReply 1 or 2");
       return;
     }
 
+    if (st.step === "SEARCH_WORK_CITY_SCOPE") {
+  if (!text) return;
+
+  if (text !== "1" && text !== "2") {
+    await sendText(from, "❌ Invalid reply.\nPlease type *1* (Same work city) or *2* (Any work city).\nOr type *STOP* to start again.");
+    return;
+  }
+
+  temp.search.workCityScope = text === "1" ? "SAME_CITY" : "ANY";
+  temp.search.user_work_city = temp.search.user_work_city || "";
+
+  await setState(from, "SEARCH_AGE_RANGE", temp);
+  await sendText(from, "Preferred age range? Example: 23-30\nType SKIP for default (21-40).");
+  return;
+}
+    
     if (st.step === "SEARCH_AGE_RANGE") {
       if (!text) return;
 
