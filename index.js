@@ -754,6 +754,23 @@ app.post("/webhook", async (req, res) => {
       await sendText(from, "✅ Cancelled. Type *JOIN* to start again.");
       return;
     }
+// Invalid reply protection when user is viewing results
+if (st.step === "SEARCH_RESULTS") {
+
+  const valid =
+    cmd === "NEXT" ||
+    cmd === "PREV" ||
+    cmd === "DETAILS" ||
+    cmd === "INTEREST";
+
+  if (!valid) {
+    await sendText(
+      from,
+      "❌ Invalid reply.\n\nPlease send one of these:\n*NEXT*\n*PREV*\n*DETAILS MH-XXXX*\n*INTEREST MH-XXXX*\n\nOr type *STOP* to start again."
+    );
+    return;
+  }
+}
 
     // ===================== ADMIN COMMANDS =====================
     if (text && (cmd === "APPROVE" || cmd === "REJECT")) {
