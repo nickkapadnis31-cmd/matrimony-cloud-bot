@@ -230,25 +230,40 @@ async function getSheetsClient() {
 // ===================== WhatsApp Cloud API =====================
 async function sendText(to, body) {
   const phone = normalizePhone(to);
-  if (!phone) return;
+  if (!phone) {
+    console.log("sendText skipped: empty phone");
+    return;
+  }
 
   const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
-  await axios.post(
-    url,
-    {
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "text",
-      text: { body },
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-        "Content-Type": "application/json",
+
+  try {
+    console.log("sendText -> phone:", phone);
+    console.log("sendText -> PHONE_NUMBER_ID:", PHONE_NUMBER_ID);
+    console.log("sendText -> body:", body);
+
+    const resp = await axios.post(
+      url,
+      {
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "text",
+        text: { body },
       },
-      timeout: 20000,
-    }
-  );
+      {
+        headers: {
+          Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 20000,
+      }
+    );
+
+    console.log("sendText success:", JSON.stringify(resp.data));
+  } catch (err) {
+    console.error("sendText failed:", JSON.stringify(err?.response?.data || err.message));
+    throw err;
+  }
 }
 
 async function sendImageByLink(to, imageLink, caption = "") {
