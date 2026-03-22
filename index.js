@@ -858,6 +858,12 @@ app.post("/webhook", async (req, res) => {
     const msgType = msg.type;
     const text = (msg.text?.body || "").trim();
 
+    console.log("📩 Incoming Message:");
+    console.log("From:", from);
+    console.log("Type:", msgType);
+    console.log("Text:", text);
+    console.log("Full Payload:", JSON.stringify(msg, null, 2));
+
     const st = await getState(from);
     const temp = safeJsonParse(st.temp_data || "{}", {});
     const { cmd, args } = parseCommand(text);
