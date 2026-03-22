@@ -1,5 +1,6 @@
-// index.js — Navin Nati (नवीन नाती) WhatsApp Bot (Meta Cloud API + Google Sheets + Cloudinary)
+// index.js — Vivaho WhatsApp Matrimony Bot (Meta Cloud API + Google Sheets + Cloudinary)
 //
+// Brand: Vivaho
 // Tagline: “नवीन नाती – विश्वासाने जोडलेली.”
 //
 // Features:
@@ -10,7 +11,7 @@
 // - 18+ enforced on registration and results
 // - Photo stored permanently in Cloudinary; stored in profiles.photo_url (public URL)
 // - MATCHES: opposite gender + asks filters; shows 5 results + NEXT/PREV
-// - DETAILS MH-XXXX: max 5/month; sends WhatsApp image + details
+// - DETAILS MH-XXXX: max 5/month; sends WhatsApp image + details (without name)
 // - INTEREST MH-XXXX: max 5/month; notifies target; ACCEPT/REJECT to share contact
 // - requests sheet columns: A req_id, B from_profile_id, C to_profile_id, D status, E created_at, F type, G viewer_phone
 //
@@ -47,7 +48,7 @@ const cloudinary = require("cloudinary").v2;
 const app = express();
 app.use(express.json());
 
-// ===================== Utils (top, used by env) =====================
+// ===================== Utils =====================
 function normalizePhone(p) {
   return (p || "").toString().replace(/\D/g, "");
 }
@@ -100,8 +101,40 @@ function oppositeGender(g) {
 function cleanLower(v) {
   return String(v || "").trim().toLowerCase();
 }
+
 function cleanUpper(v) {
   return String(v || "").trim().toUpperCase();
+}
+
+function isYes1(v) {
+  return String(v || "").trim() === "1";
+}
+
+function isNo2(v) {
+  return String(v || "").trim() === "2";
+}
+
+function normalizeProfileId(v) {
+  return String(v || "").trim().toUpperCase();
+}
+
+function isValidProfileId(v) {
+  return /^MH-\d{4,}$/.test(normalizeProfileId(v));
+}
+
+function normalizeGender(v) {
+  const x = cleanLower(v);
+  if (x === "male" || x === "m") return "male";
+  if (x === "female" || x === "f") return "female";
+  return "";
+}
+
+function isSkip(v) {
+  return cleanUpper(v) === "SKIP";
+}
+
+function isSame(v) {
+  return cleanUpper(v) === "SAME";
 }
 
 // ===================== ENV =====================
@@ -132,27 +165,57 @@ function isAdmin(from) {
 }
 
 // ===================== Branding =====================
-const BRAND_NAME = "Navin Nati (नवीन नाती)";
+const BRAND_NAME = "Vivaho";
+const BRAND_SUBTITLE = "Matrimony Service";
 const BRAND_TAGLINE = "नवीन नाती – विश्वासाने जोडलेली.";
 
+const MAX_PROFILES_PER_PHONE = 2;
+const MIN_AGE = 18;
+const MAX_DETAILS_PER_MONTH = 5;
+const MAX_INTEREST_PER_MONTH = 5;
+const RESULTS_PAGE_SIZE = 5;
+
+const PROFILE_TAB = "profiles";
+const STATE_TAB = "state";
+const REQUESTS_TAB = "requests";
+
+// ===================== Messages =====================
 const WELCOME_MSG =
-`${BRAND_NAME}
+`💍 *${BRAND_NAME}*
+${BRAND_SUBTITLE}
+${BRAND_TAGLINE}
 
 विश्वासाने जुळवा योग्य स्थळ ❤️
-Find the right match with trust.
+Find the right match with trust.`;
 
-🔹 प्रोफाइल तयार करण्यासाठी *JOIN* लिहा
-Type *JOIN* to create your profile.
+const COMMANDS_MSG =
+`📘 *${BRAND_NAME} वापरण्याची पद्धत / How it works*
 
-🔹 स्थळ शोधण्यासाठी *MATCHES* लिहा
-Type *MATCHES* to find suitable matches.
+*JOIN* → नवीन प्रोफाइल तयार करा
+*MATCHES* → योग्य स्थळ शोधा
+*DETAILS MH-XXXX* → प्रोफाइलची माहिती पहा
+*INTEREST MH-XXXX* → आवड दर्शवा
+*MYPROFILES* → तुमची प्रोफाइल्स पहा
+*DELETE MH-XXXX* → प्रोफाइल डिलीट करा
+*STOP* → चालू प्रक्रिया थांबवा
 
-⏳ तुमचे प्रोफाइल *Approved* झाल्यानंतरच तुम्ही स्थळ शोधू शकता.
-You can search matches only after your profile is approved.`;
+⏳ प्रोफाइल *Approved* झाल्यानंतरच तुम्ही MATCHES / DETAILS / INTEREST वापरू शकता.
 
-// pending message for MATCHES/DETAILS/INTEREST etc.
+पुढे जाण्यासाठी *1* पाठवा
+थांबवण्यासाठी *2* पाठवा`;
+
+const THANK_YOU_MARKETING_MSG =
+`🙏 Thank you for connecting with *${BRAND_NAME}*.
+
+तुमच्या मनासारखा जोडीदार शोधण्यासाठी आम्हाला पुन्हा मेसेज करा ❤️
+
+📩 प्रोफाइल सुरू करण्यासाठी कधीही *JOIN* पाठवा.
+
+*${BRAND_NAME}*  
+${BRAND_TAGLINE}`;
+
 const PENDING_MSG =
-`${BRAND_NAME}
+`💍 *${BRAND_NAME}*
 
 तुमचे प्रोफाइल अजून *Approved* झालेले नाही.
 Your profile is not approved yet.
@@ -160,21 +223,74 @@ Your profile is not approved yet.
 ⏳ कृपया Admin approval साठी थोडा वेळ प्रतीक्षा करा.
 Please wait for admin approval.
 
-Approved झाल्यानंतर स्थळ शोधण्यासाठी *MATCHES* लिहा.
-Type *MATCHES* after approval.`;
+Approved झाल्यानंतर स्थळ शोधण्यासाठी *MATCHES* लिहा.`;
 
-// ===================== CONSTANTS =====================
-const PROFILE_TAB = "profiles";
-const STATE_TAB = "state";
-const REQUESTS_TAB = "requests";
+const DETAILS_INTEREST_LOCK_MSG =
+`💍 *${BRAND_NAME}*
 
-const MAX_PROFILES_PER_PHONE = 2;
-const MIN_AGE = 18;
+⏳ Your profile is not approved yet.
+Please wait for admin approval.
 
-const MAX_DETAILS_PER_MONTH = 5;
-const MAX_INTEREST_PER_MONTH = 5;
+Only APPROVED users can use DETAILS and INTEREST.
 
-const RESULTS_PAGE_SIZE = 5;
+${BRAND_TAGLINE}`;
+
+function getPromptByStep(step, temp = {}) {
+  switch (step) {
+    case "ONBOARDING_DECISION":
+      return COMMANDS_MSG;
+    case "ASK_NAME":
+      return `${WELCOME_MSG}\n\nReply with your *Name*:\nतुमचे नाव पाठवा`;
+    case "ASK_SURNAME":
+      return "Good. Now reply with your *Surname*:\nआडनाव पाठवा";
+    case "ASK_GENDER":
+      return "Gender? Reply *Male* or *Female*:\nलिंग: Male / Female";
+    case "ASK_DOB":
+      return "Date of Birth? Format: *DD-MM-YYYY* (example 05-11-1998)\nजन्मतारीख: DD-MM-YYYY";
+    case "ASK_HEIGHT":
+      return "Height? (Example: 5'6 or 168 cm):\nउंची?";
+    case "ASK_RELIGION":
+      return "Religion? (Example: Hindu / Muslim / Jain / Buddhist):\nधर्म?";
+    case "ASK_CASTE":
+      return "Caste? (Example: Maratha / Brahmin / Kunbi / etc.):\nजात?";
+    case "ASK_NATIVE_PLACE":
+      return "तुमचे मूळ गाव कोणते आहे?\nWhat is your native place?\n\nउदा / Example: Satara / Kolhapur / Nandurbar";
+    case "ASK_DISTRICT":
+      return "District? Example: Pune / Nashik / Mumbai Suburban:\nजिल्हा?";
+    case "ASK_WORK_CITY":
+      return "सध्या तुम्ही कोणत्या शहरात काम करता?\nWhich city do you currently work in?\n\nउदा / Example: Pune / Mumbai / Nashik\n\nNative आणि Work city एकच असेल तर SAME लिहा.\nIf same as native place, type SAME.";
+    case "ASK_WORK_DISTRICT":
+      return "कामाचा जिल्हा कोणता आहे?\nWhich district is your work location in?\n\nउदा / Example: Pune / Mumbai Suburban / Nashik\n\nमाहित नसेल तर SKIP लिहा.\nIf unknown, type SKIP.";
+    case "ASK_EDU":
+      return "Education? (Example: B.Com / BE / MBA):\nशिक्षण?";
+    case "ASK_JOB":
+      return "तुमचा व्यवसाय/नोकरी प्रकार काय?\nJob type? (Example: Government / Private / Business)\n\nउदा / Example: Govt / Private / Business";
+    case "ASK_JOB_TITLE":
+      return "तुम्ही नेमके काय काम करता?\nWhat exactly is your job role?\n\nउदा / Example:\nSoftware Engineer\nPolice Constable\nTeacher\nBusiness – Garments";
+    case "ASK_INCOME":
+      return "Annual Income? (Example: 5 LPA / 10 LPA / 15 LPA):\nवार्षिक उत्पन्न?";
+    case "ASK_PHOTO":
+      return "Please send *one clear photo* (selfie or portrait). Photo is mandatory ✅\nफोटो पाठवा ✅";
+    case "SEARCH_CITY_SCOPE":
+      return `Search preferences:\n1) Same Native Place (${temp?.search?.user_city || "your native place"})\n2) Any Native Place in Maharashtra\n\nReply 1 or 2`;
+    case "SEARCH_WORK_CITY_SCOPE":
+      return "Work location preference?\n1) Same work city\n2) Any work city\nReply 1 or 2";
+    case "SEARCH_AGE_RANGE":
+      return "Preferred age range? Example: 23-30\nType SKIP for default (21-40).";
+    case "SEARCH_CASTE_SCOPE":
+      return `Caste preference?\n1) Same caste (${temp?.search?.user_caste || "your caste"})\n2) Any caste\nReply 1 or 2`;
+    case "SEARCH_EDU_MIN":
+      return "Minimum education?\n1) Any\n2) Graduate\n3) Postgraduate\nReply 1/2/3";
+    case "SEARCH_INCOME_MIN":
+      return "Minimum income (LPA)? Example: 5\nType SKIP for any.";
+    default:
+      return "";
+  }
+}
+
+function makeInvalidReplyMsg(originalPrompt) {
+  return `❌ Invalid response.\n\nकृपया *STOP* टाइप करा if you want to cancel.\nPlease reply only with the expected answer.\n\n${originalPrompt}`;
+}
 
 // ===================== Cloudinary =====================
 cloudinary.config({
@@ -190,7 +306,7 @@ async function uploadPhotoToCloudinary(bytes, filename = "") {
     return await new Promise((resolve) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
-          folder: "navin_nati_profiles",
+          folder: "vivaho_profiles",
           resource_type: "image",
           public_id: filename ? filename.replace(/\.[^/.]+$/, "") : undefined,
           overwrite: false,
@@ -238,10 +354,6 @@ async function sendText(to, body) {
   const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
 
   try {
-    console.log("sendText -> phone:", phone);
-    console.log("sendText -> PHONE_NUMBER_ID:", PHONE_NUMBER_ID);
-    console.log("sendText -> body:", body);
-
     const resp = await axios.post(
       url,
       {
@@ -271,25 +383,31 @@ async function sendImageByLink(to, imageLink, caption = "") {
   if (!phone) return;
 
   const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
-  await axios.post(
-    url,
-    {
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "image",
-      image: {
-        link: imageLink,
-        ...(caption ? { caption } : {}),
+
+  try {
+    await axios.post(
+      url,
+      {
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "image",
+        image: {
+          link: imageLink,
+          ...(caption ? { caption } : {}),
+        },
       },
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      timeout: 20000,
-    }
-  );
+      {
+        headers: {
+          Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 20000,
+      }
+    );
+  } catch (err) {
+    console.error("sendImageByLink failed:", JSON.stringify(err?.response?.data || err.message));
+    throw err;
+  }
 }
 
 async function getMetaMediaUrl(mediaId) {
@@ -342,7 +460,7 @@ async function setState(phone, step, tempObj) {
   let rowIndex = -1;
   for (let i = 1; i < rows.length; i++) {
     if ((rows[i][0] || "") === phone) {
-      rowIndex = i + 1; // 1-based
+      rowIndex = i + 1;
       break;
     }
   }
@@ -364,7 +482,7 @@ async function setState(phone, step, tempObj) {
   }
 }
 
-// ===================== Sheets: PROFILES (A–T) =====================
+// ===================== Sheets: PROFILES =====================
 async function getAllProfilesRows() {
   const sheets = await getSheetsClient();
   const res = await sheets.spreadsheets.values.get({
@@ -375,7 +493,6 @@ async function getAllProfilesRows() {
 }
 
 function profileRowToObj(row, rowIndex1Based) {
-  // A–T mapping
   const obj = {
     rowIndex: rowIndex1Based,
     profile_id: row?.[0] || "",
@@ -400,9 +517,7 @@ function profileRowToObj(row, rowIndex1Based) {
     created_at: row?.[19] || "",
   };
 
-  // Backward-compat alias (so old logic still works safely)
-  obj.city = obj.native_place;
-
+  obj.city = obj.native_place; // backward compatibility
   return obj;
 }
 
@@ -417,16 +532,16 @@ async function findProfilesByPhone(phone) {
 }
 
 async function findProfileById(profileId) {
+  const targetId = normalizeProfileId(profileId);
   const rows = await getAllProfilesRows();
   for (let i = 1; i < rows.length; i++) {
     const obj = profileRowToObj(rows[i], i + 1);
-    if ((obj.profile_id || "").trim() === (profileId || "").trim()) return obj;
+    if (normalizeProfileId(obj.profile_id) === targetId) return obj;
   }
   return null;
 }
 
 async function updateProfileStatus(rowIndex1Based, newStatus) {
-  // status is column S now
   const sheets = await getSheetsClient();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
@@ -483,26 +598,26 @@ async function createProfile(phone, temp) {
   const createdAt = nowISO();
 
   const row = [
-    profile_id,                 // A
-    phone,                      // B
-    temp.name || "",            // C
-    temp.surname || "",         // D
-    temp.gender || "",          // E
-    temp.date_of_birth || "",   // F
-    temp.religion || "",        // G
-    temp.height || "",          // H
-    temp.caste || "",           // I
-    temp.native_place || "",    // J
-    temp.district || "",        // K
-    temp.work_city || "",       // L
-    temp.work_district || "",   // M
-    temp.education || "",       // N
-    temp.job || "",             // O
-    temp.job_title || "",       // P
-    temp.income_annual || "",   // Q
-    temp.photo_url || "",       // R
-    "PENDING",                  // S
-    createdAt,                  // T
+    profile_id,
+    phone,
+    temp.name || "",
+    temp.surname || "",
+    temp.gender || "",
+    temp.date_of_birth || "",
+    temp.religion || "",
+    temp.height || "",
+    temp.caste || "",
+    temp.native_place || "",
+    temp.district || "",
+    temp.work_city || "",
+    temp.work_district || "",
+    temp.education || "",
+    temp.job || "",
+    temp.job_title || "",
+    temp.income_annual || "",
+    temp.photo_url || "",
+    "PENDING",
+    createdAt,
   ];
 
   await sheets.spreadsheets.values.append({
@@ -521,20 +636,6 @@ function getLatestApprovedProfile(profiles) {
   }
   return null;
 }
-function getLatestProfile(profiles) {
-  if (!Array.isArray(profiles) || profiles.length === 0) return null;
-  return profiles[profiles.length - 1]; // latest appended row
-}
-
-const DETAILS_INTEREST_LOCK_MSG =
-`${BRAND_NAME}
-
-⏳ Your profile is not approved yet.
-Please wait for admin approval.
-
-Only APPROVED users can use DETAILS and INTEREST.
-
-${BRAND_TAGLINE}`;
 
 // ===================== Sheets: REQUESTS =====================
 async function getAllRequestsRows() {
@@ -662,7 +763,6 @@ function parseIncomeLPA(incomeText) {
 function buildProfileCardLine(p) {
   const age = calcAgeFromDobDDMMYYYY(p.date_of_birth);
   const ageTxt = age !== null ? `${age}` : "NA";
-
   const nativeTxt = p.native_place ? `${p.native_place}` : "NA";
   const workTxt = p.work_city ? `${p.work_city}` : "NA";
   const jobTitleTxt = p.job_title ? p.job_title : (p.job || "");
@@ -679,17 +779,17 @@ function applyFiltersToApprovedProfiles(allProfiles, opts) {
     const age = calcAgeFromDobDDMMYYYY(p.date_of_birth);
     if (age === null || age < MIN_AGE) continue;
 
+    if (opts.excludeProfileId && p.profile_id === opts.excludeProfileId) continue;
     if (opts.targetGender && cleanLower(p.gender) !== cleanLower(opts.targetGender)) continue;
 
-    // "cityScope" kept for backward compatibility; now it means native_place scope
     if (opts.cityScope === "SAME_CITY" && opts.userCity) {
       if (cleanLower(p.native_place) !== cleanLower(opts.userCity)) continue;
     }
-// Work location filter (work city scope)
-if (opts.workCityScope === "SAME_CITY" && opts.userWorkCity) {
-  if (cleanLower(p.work_city) !== cleanLower(opts.userWorkCity)) continue;
-}
-    
+
+    if (opts.workCityScope === "SAME_CITY" && opts.userWorkCity) {
+      if (cleanLower(p.work_city) !== cleanLower(opts.userWorkCity)) continue;
+    }
+
     if (opts.ageMin !== null && age < opts.ageMin) continue;
     if (opts.ageMax !== null && age > opts.ageMax) continue;
 
@@ -715,7 +815,7 @@ if (opts.workCityScope === "SAME_CITY" && opts.userWorkCity) {
 async function sendResultsPage(to, searchState) {
   const { results = [], page = 0 } = searchState;
   if (!results.length) {
-    await sendText(to, "No matches found with your preferences. Try again with different filters.");
+    await sendText(to, `💍 *${BRAND_NAME}*\n\nNo matches found with your preferences.\nTry again with different filters.`);
     return;
   }
 
@@ -723,9 +823,9 @@ async function sendResultsPage(to, searchState) {
   const end = start + RESULTS_PAGE_SIZE;
   const chunk = results.slice(start, end);
 
-  let msg = `🔎 Matches (${start + 1}-${Math.min(end, results.length)} of ${results.length})\n\n`;
+  let msg = `💍 *${BRAND_NAME}*\n\n🔎 Matches (${start + 1}-${Math.min(end, results.length)} of ${results.length})\n\n`;
   msg += chunk.map(buildProfileCardLine).join("\n");
-  msg += `\n\nCommands:\nNEXT | PREV\nDETAILS MH-XXXX\nINTEREST MH-XXXX`;
+  msg += `\n\nCommands:\n*NEXT* | *PREV*\n*DETAILS MH-XXXX*\n*INTEREST MH-XXXX*`;
 
   await sendText(to, msg);
 }
@@ -733,7 +833,7 @@ async function sendResultsPage(to, searchState) {
 // ===================== Health =====================
 app.get("/health", (req, res) => res.status(200).send("OK"));
 
-// ===================== Webhook Verify (GET) =====================
+// ===================== Webhook Verify =====================
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
@@ -745,9 +845,8 @@ app.get("/webhook", (req, res) => {
   return res.sendStatus(403);
 });
 
-// ===================== Webhook Receive (POST) =====================
+// ===================== Webhook Receive =====================
 app.post("/webhook", async (req, res) => {
-  // Reply fast to Meta
   res.sendStatus(200);
 
   try {
@@ -766,26 +865,9 @@ app.post("/webhook", async (req, res) => {
     // ===================== GLOBAL CANCEL =====================
     if (cmd === "STOP" || cmd === "CANCEL") {
       await setState(from, "", {});
-      await sendText(from, "✅ Cancelled. Type *JOIN* to start again.");
+      await sendText(from, `✅ Cancelled.\n\n${WELCOME_MSG}\n\nType *JOIN* to start again.`);
       return;
     }
-// Invalid reply protection when user is viewing results
-if (st.step === "SEARCH_RESULTS") {
-
-  const valid =
-    cmd === "NEXT" ||
-    cmd === "PREV" ||
-    cmd === "DETAILS" ||
-    cmd === "INTEREST";
-
-  if (!valid) {
-    await sendText(
-      from,
-      "❌ Invalid reply.\n\nPlease send one of these:\n*NEXT*\n*PREV*\n*DETAILS MH-XXXX*\n*INTEREST MH-XXXX*\n\nOr type *STOP* to start again."
-    );
-    return;
-  }
-}
 
     // ===================== ADMIN COMMANDS =====================
     if (text && (cmd === "APPROVE" || cmd === "REJECT")) {
@@ -793,7 +875,8 @@ if (st.step === "SEARCH_RESULTS") {
         await sendText(from, "❌ Only admin can approve/reject profiles.");
         return;
       }
-      const profileId = args[0];
+
+      const profileId = normalizeProfileId(args[0]);
       if (!profileId) {
         await sendText(from, "Use: approve MH-XXXX  OR  reject MH-XXXX");
         return;
@@ -811,43 +894,66 @@ if (st.step === "SEARCH_RESULTS") {
       if (cmd === "APPROVE") {
         await sendText(
           prof.phone,
-          `🎉 अभिनंदन! तुमचे प्रोफाइल *${profileId}* *Approved* झाले आहे.\n\n${BRAND_NAME}\n${BRAND_TAGLINE}\n\nस्थळ शोधण्यासाठी *MATCHES* लिहा.\nType *MATCHES* to browse profiles.`
+          `🎉 अभिनंदन! तुमचे प्रोफाइल *${profileId}* *Approved* झाले आहे.\n\n💍 *${BRAND_NAME}*\n${BRAND_TAGLINE}\n\nस्थळ शोधण्यासाठी *MATCHES* लिहा.\nType *MATCHES* to browse profiles.`
         );
         await sendText(from, `✅ Approved ${profileId}`);
       } else {
         await sendText(
           prof.phone,
-          `❌ Your profile *${profileId}* was *REJECTED*.\n\n${BRAND_NAME}\n${BRAND_TAGLINE}\n\nYou can create a new profile after deleting this one.`
+          `❌ Your profile *${profileId}* was *REJECTED*.\n\n💍 *${BRAND_NAME}*\n${BRAND_TAGLINE}\n\nYou can create a new profile after deleting this one.`
         );
         await sendText(from, `✅ Rejected ${profileId}`);
       }
       return;
     }
 
-    // ===================== USER COMMANDS: MYPROFILES =====================
+    // ===================== RESULTS INVALID REPLY PROTECTION =====================
+    if (st.step === "SEARCH_RESULTS") {
+      const valid = cmd === "NEXT" || cmd === "PREV" || cmd === "DETAILS" || cmd === "INTEREST";
+      if (!valid) {
+        await sendText(
+          from,
+          "❌ Invalid response.\n\nPlease send one of these:\n*NEXT*\n*PREV*\n*DETAILS MH-XXXX*\n*INTEREST MH-XXXX*\n\nOr type *STOP* to start again."
+        );
+        return;
+      }
+    }
+
+    // ===================== MYPROFILES =====================
     if (cmd === "MYPROFILES") {
       const profiles = await findProfilesByPhone(from);
       if (!profiles.length) {
-        await sendText(from, `${WELCOME_MSG}`);
+        await sendText(from, `${WELCOME_MSG}\n\nType *JOIN* to create your profile.`);
         return;
       }
+
       const lines = profiles.map((p) => `• ${p.profile_id} (${p.status || "PENDING"})`);
-      await sendText(from, `Your profiles:\n${lines.join("\n")}\n\nDelete: *DELETE MH-XXXX*\nCreate new: *JOIN* (max 2)`);
+      await sendText(
+        from,
+        `💍 *${BRAND_NAME}*\n\nYour profiles:\n${lines.join("\n")}\n\nDelete: *DELETE MH-XXXX*\nCreate new: *JOIN* (max ${MAX_PROFILES_PER_PHONE})`
+      );
       return;
     }
 
-    // ===================== USER COMMANDS: DELETE MH-XXXX =====================
+    // ===================== DELETE =====================
     if (cmd === "DELETE") {
-      const profileId = args[0];
+      const profileId = normalizeProfileId(args[0]);
       if (!profileId) {
         await sendText(from, "Use: DELETE MH-XXXX");
         return;
       }
+
+      if (!isValidProfileId(profileId)) {
+        await sendText(from, "❌ Invalid Profile ID format.\nUse: DELETE MH-XXXX");
+        return;
+      }
+
       const prof = await findProfileById(profileId);
       if (!prof) {
         await sendText(from, "Profile ID not found.");
         return;
       }
+
       if (prof.phone !== from) {
         await sendText(from, "❌ You can delete only your own profile.");
         return;
@@ -855,22 +961,24 @@ if (st.step === "SEARCH_RESULTS") {
 
       await deleteProfileRow(prof.rowIndex);
       await setState(from, "", {});
-      await sendText(from, `✅ Deleted ${profileId}.\nType *JOIN* to create a new profile.`);
+      await sendText(from, `✅ Deleted ${profileId}.\n\n💍 *${BRAND_NAME}*\nType *JOIN* to create a new profile.`);
       return;
     }
 
-    // ===================== MATCHES / SEARCH FLOW =====================
+    // ===================== MATCHES =====================
     if (cmd === "MATCHES" || cmd === "SEARCH") {
       const profiles = await findProfilesByPhone(from);
 
-// If user has no profile
-if (!profiles.length) {
-  await sendText(from, `${WELCOME_MSG}\n\nType *JOIN* to create your profile.`);
-  return;
-}
+      if (!profiles.length) {
+        await sendText(from, `${WELCOME_MSG}\n\nType *JOIN* to create your profile.`);
+        return;
+      }
 
-// allow search even if pending
-const active = getLatestApprovedProfile(profiles) || profiles[profiles.length - 1];
+      const active = getLatestApprovedProfile(profiles);
+      if (!active) {
+        await sendText(from, PENDING_MSG);
+        return;
+      }
 
       const targetGender = oppositeGender(active.gender);
       if (!targetGender) {
@@ -880,12 +988,12 @@ const active = getLatestApprovedProfile(profiles) || profiles[profiles.length - 
 
       temp.search = {
         from_profile_id: active.profile_id,
-        // keeping old key names for safety; now "user_city" means native_place
         user_city: active.native_place || active.city || "",
         user_caste: active.caste || "",
+        user_work_city: active.work_city || "",
         target_gender: targetGender,
-
         cityScope: null,
+        workCityScope: null,
         ageMin: null,
         ageMax: null,
         casteScope: null,
@@ -896,21 +1004,17 @@ const active = getLatestApprovedProfile(profiles) || profiles[profiles.length - 
       };
 
       await setState(from, "SEARCH_CITY_SCOPE", temp);
-
-      const native = active.native_place || active.city || "";
-      await sendText(
-        from,
-        `Search preferences:\n1) Same Native Place (${native || "your native place"})\n2) Any Native Place in Maharashtra\n\nReply 1 or 2`
-      );
+      await sendText(from, getPromptByStep("SEARCH_CITY_SCOPE", temp));
       return;
     }
 
-    // NEXT / PREV
+    // ===================== NEXT / PREV =====================
     if (cmd === "NEXT" || cmd === "PREV") {
       if (!temp.search || !Array.isArray(temp.search.results)) {
         await sendText(from, "Type *MATCHES* to start searching.");
         return;
       }
+
       const total = temp.search.results.length;
       if (!total) {
         await sendText(from, "No search results. Type *MATCHES* to search again.");
@@ -927,11 +1031,16 @@ const active = getLatestApprovedProfile(profiles) || profiles[profiles.length - 
       return;
     }
 
-    // DETAILS MH-XXXX
+    // ===================== DETAILS =====================
     if (cmd === "DETAILS") {
-      const profileId = args[0];
+      const profileId = normalizeProfileId(args[0]);
       if (!profileId) {
         await sendText(from, "Use: DETAILS MH-XXXX");
+        return;
+      }
+
+      if (!isValidProfileId(profileId)) {
+        await sendText(from, "❌ Invalid Profile ID format.\nUse: DETAILS MH-XXXX");
         return;
       }
 
@@ -944,7 +1053,7 @@ const active = getLatestApprovedProfile(profiles) || profiles[profiles.length - 
 
       const used = await countThisMonth({ from_profile_id: active.profile_id, type: "DETAILS" });
       if (used >= MAX_DETAILS_PER_MONTH) {
-        await sendText(from, `⚠️ Monthly limit reached: max ${MAX_DETAILS_PER_MONTH} details per month.`);
+        await sendText(from, `⚠️ Monthly limit reached.\nYou can view maximum ${MAX_DETAILS_PER_MONTH} profile details per month.`);
         return;
       }
 
@@ -964,9 +1073,10 @@ const active = getLatestApprovedProfile(profiles) || profiles[profiles.length - 
 
       const age = calcAgeFromDobDDMMYYYY(target.date_of_birth);
       const cap =
-`📄 Profile Details
+`💍 *${BRAND_NAME}*
+
+📄 Profile Details
 ID: ${target.profile_id}
-Name: ${target.name} ${target.surname}
 Gender: ${target.gender}
 Age: ${age !== null ? age : "NA"}
 
@@ -992,11 +1102,16 @@ If interested: INTEREST ${target.profile_id}`;
       return;
     }
 
-    // INTEREST MH-XXXX
+    // ===================== INTEREST =====================
     if (cmd === "INTEREST") {
-      const profileId = args[0];
+      const profileId = normalizeProfileId(args[0]);
       if (!profileId) {
         await sendText(from, "Use: INTEREST MH-XXXX");
+        return;
+      }
+
+      if (!isValidProfileId(profileId)) {
+        await sendText(from, "❌ Invalid Profile ID format.\nUse: INTEREST MH-XXXX");
         return;
       }
 
@@ -1007,9 +1122,14 @@ If interested: INTEREST ${target.profile_id}`;
         return;
       }
 
+      if (active.profile_id === profileId) {
+        await sendText(from, "❌ You cannot send INTEREST to your own profile.");
+        return;
+      }
+
       const used = await countThisMonth({ from_profile_id: active.profile_id, type: "INTEREST" });
       if (used >= MAX_INTEREST_PER_MONTH) {
-        await sendText(from, `⚠️ Monthly limit reached: max ${MAX_INTEREST_PER_MONTH} interests per month.`);
+        await sendText(from, `⚠️ Monthly limit reached.\nYou can send maximum ${MAX_INTEREST_PER_MONTH} interests per month.`);
         return;
       }
 
@@ -1019,7 +1139,11 @@ If interested: INTEREST ${target.profile_id}`;
         return;
       }
 
-      const existing = await findInterestRequest({ from_profile_id: active.profile_id, to_profile_id: target.profile_id });
+      const existing = await findInterestRequest({
+        from_profile_id: active.profile_id,
+        to_profile_id: target.profile_id,
+      });
+
       if (existing && ["SENT", "ACCEPTED"].includes(existing.status)) {
         await sendText(from, "You already showed interest in this profile.");
         return;
@@ -1035,18 +1159,23 @@ If interested: INTEREST ${target.profile_id}`;
 
       await sendText(
         target.phone,
-        `💌 Someone showed interest in you!\n\nInterested Profile ID: *${active.profile_id}*\n\nReply:\nACCEPT ${active.profile_id}\nREJECT ${active.profile_id}`
+        `💌 *${BRAND_NAME}*\n\nSomeone showed interest in you!\n\nInterested Profile ID: *${active.profile_id}*\n\nReply:\nACCEPT ${active.profile_id}\nREJECT ${active.profile_id}`
       );
 
-      await sendText(from, `✅ Interest sent to ${target.profile_id}. You will be notified if they accept.`);
+      await sendText(from, `✅ Interest sent to ${target.profile_id}.\nYou will be notified if they accept.`);
       return;
     }
 
-    // ACCEPT / REJECT
+    // ===================== ACCEPT / REJECT INTEREST =====================
     if (cmd === "ACCEPT" || cmd === "REJECT") {
-      const interestedProfileId = args[0];
+      const interestedProfileId = normalizeProfileId(args[0]);
       if (!interestedProfileId) {
         await sendText(from, "Use: ACCEPT MH-XXXX  OR  REJECT MH-XXXX");
+        return;
+      }
+
+      if (!isValidProfileId(interestedProfileId)) {
+        await sendText(from, "❌ Invalid Profile ID format.\nUse: ACCEPT MH-XXXX  OR  REJECT MH-XXXX");
         return;
       }
 
@@ -1093,57 +1222,49 @@ If interested: INTEREST ${target.profile_id}`;
       }
 
       await sendText(from, `✅ Accepted interest from ${interestedProfileId}.\nWe are sharing contact details now.`);
-
       await sendText(from, `📞 Contact shared:\nProfile: ${interestedProfileId}\nPhone: ${senderProfile.phone}`);
-
       await sendText(
         senderProfile.phone,
         `✅ Your interest was accepted!\n\n📞 Contact shared:\nProfile: ${receiverActive.profile_id}\nPhone: ${receiverActive.phone}`
       );
-
       return;
     }
 
-    // ===================== SEARCH STEPS =====================
+    // ===================== SEARCH FLOW =====================
     if (st.step === "SEARCH_CITY_SCOPE") {
-      if (!text) return;
-      if (text !== "1" && text !== "2") {
-        await sendText(from, "❌ Invalid reply.\nPlease type *1* or *2*.\Or type *STOP* to start again.");
+      if (!text || (!isYes1(text) && !isNo2(text))) {
+        await sendText(from, makeInvalidReplyMsg(getPromptByStep("SEARCH_CITY_SCOPE", temp)));
         return;
       }
-      temp.search.cityScope = text === "1" ? "SAME_CITY" : "ANY";
 
+      temp.search.cityScope = isYes1(text) ? "SAME_CITY" : "ANY";
       await setState(from, "SEARCH_WORK_CITY_SCOPE", temp);
-await sendText(from, "Work location preference?\n1) Same work city\n2) Any work city\nReply 1 or 2");
+      await sendText(from, getPromptByStep("SEARCH_WORK_CITY_SCOPE", temp));
       return;
     }
 
     if (st.step === "SEARCH_WORK_CITY_SCOPE") {
-  if (!text) return;
+      if (!text || (!isYes1(text) && !isNo2(text))) {
+        await sendText(from, makeInvalidReplyMsg(getPromptByStep("SEARCH_WORK_CITY_SCOPE", temp)));
+        return;
+      }
 
-  if (text !== "1" && text !== "2") {
-    await sendText(from, "❌ Invalid reply.\nPlease type *1* (Same work city) or *2* (Any work city).\nOr type *STOP* to start again.");
-    return;
-  }
+      temp.search.workCityScope = isYes1(text) ? "SAME_CITY" : "ANY";
+      await setState(from, "SEARCH_AGE_RANGE", temp);
+      await sendText(from, getPromptByStep("SEARCH_AGE_RANGE", temp));
+      return;
+    }
 
-  temp.search.workCityScope = text === "1" ? "SAME_CITY" : "ANY";
-  temp.search.user_work_city = temp.search.user_work_city || "";
-
-  await setState(from, "SEARCH_AGE_RANGE", temp);
-  await sendText(from, "Preferred age range? Example: 23-30\nType SKIP for default (21-40).");
-  return;
-}
-    
     if (st.step === "SEARCH_AGE_RANGE") {
       if (!text) return;
 
-      if (text.toUpperCase() === "SKIP") {
+      if (isSkip(text)) {
         temp.search.ageMin = 21;
         temp.search.ageMax = 40;
       } else {
         const m = text.match(/^(\d{2})-(\d{2})$/);
         if (!m) {
-          await sendText(from, "❌ Invalid format.\nPlease send age range like *23-30*.\nOr type *SKIP* for default.\nOr type *STOP* to start again.");
+          await sendText(from, makeInvalidReplyMsg(getPromptByStep("SEARCH_AGE_RANGE", temp)));
           return;
         }
         const a1 = parseInt(m[1], 10);
@@ -1157,44 +1278,43 @@ await sendText(from, "Work location preference?\n1) Same work city\n2) Any work 
       }
 
       await setState(from, "SEARCH_CASTE_SCOPE", temp);
-      await sendText(from, `Caste preference?\n1) Same caste (${temp.search.user_caste || "your caste"})\n2) Any caste\nReply 1 or 2`);
+      await sendText(from, getPromptByStep("SEARCH_CASTE_SCOPE", temp));
       return;
     }
 
     if (st.step === "SEARCH_CASTE_SCOPE") {
-      if (!text) return;
-      if (text !== "1" && text !== "2") {
-        await sendText(from, "❌ Invalid reply.\nPlease type *1* (Same caste) or *2* (Any caste).\nOr type *STOP* to start again.");
+      if (!text || (!isYes1(text) && !isNo2(text))) {
+        await sendText(from, makeInvalidReplyMsg(getPromptByStep("SEARCH_CASTE_SCOPE", temp)));
         return;
       }
-      temp.search.casteScope = text === "1" ? "SAME_CASTE" : "ANY";
 
+      temp.search.casteScope = isYes1(text) ? "SAME_CASTE" : "ANY";
       await setState(from, "SEARCH_EDU_MIN", temp);
-      await sendText(from, "Minimum education?\n1) Any\n2) Graduate\n3) Postgraduate\nReply 1/2/3");
+      await sendText(from, getPromptByStep("SEARCH_EDU_MIN", temp));
       return;
     }
 
     if (st.step === "SEARCH_EDU_MIN") {
-      if (!text) return;
       if (!["1", "2", "3"].includes(text)) {
-        await sendText(from, "❌ Invalid reply.\nPlease type *1*, *2* or *3*.\nOr type *STOP* to start again.");
+        await sendText(from, makeInvalidReplyMsg(getPromptByStep("SEARCH_EDU_MIN", temp)));
         return;
       }
-      temp.search.eduMinRank = text === "1" ? null : text === "2" ? 2 : 3;
 
+      temp.search.eduMinRank = text === "1" ? null : text === "2" ? 2 : 3;
       await setState(from, "SEARCH_INCOME_MIN", temp);
-      await sendText(from, "Minimum income (LPA)? Example: 5\nType SKIP for any.");
+      await sendText(from, getPromptByStep("SEARCH_INCOME_MIN", temp));
       return;
     }
 
     if (st.step === "SEARCH_INCOME_MIN") {
       if (!text) return;
-      if (text.toUpperCase() === "SKIP") {
+
+      if (isSkip(text)) {
         temp.search.incomeMin = null;
       } else {
         const v = parseFloat(text);
         if (Number.isNaN(v) || v < 0) {
-          await sendText(from, "Send a number like 5 or type SKIP.");
+          await sendText(from, makeInvalidReplyMsg(getPromptByStep("SEARCH_INCOME_MIN", temp)));
           return;
         }
         temp.search.incomeMin = v;
@@ -1207,21 +1327,19 @@ await sendText(from, "Work location preference?\n1) Same work city\n2) Any work 
       }
 
       const results = applyFiltersToApprovedProfiles(allProfiles, {
-  targetGender: temp.search.target_gender,
-  cityScope: temp.search.cityScope,
-  userCity: temp.search.user_city,
-
-  // NEW WORK LOCATION FILTER
-  workCityScope: temp.search.workCityScope,
-  userWorkCity: temp.search.user_work_city,
-
-  ageMin: temp.search.ageMin,
-  ageMax: temp.search.ageMax,
-  casteScope: temp.search.casteScope,
-  userCaste: temp.search.user_caste,
-  eduMinRank: temp.search.eduMinRank,
-  incomeMin: temp.search.incomeMin,
-});
+        excludeProfileId: temp.search.from_profile_id,
+        targetGender: temp.search.target_gender,
+        cityScope: temp.search.cityScope,
+        userCity: temp.search.user_city,
+        workCityScope: temp.search.workCityScope,
+        userWorkCity: temp.search.user_work_city,
+        ageMin: temp.search.ageMin,
+        ageMax: temp.search.ageMax,
+        casteScope: temp.search.casteScope,
+        userCaste: temp.search.user_caste,
+        eduMinRank: temp.search.eduMinRank,
+        incomeMin: temp.search.incomeMin,
+      });
 
       temp.search.results = results;
       temp.search.page = 0;
@@ -1231,7 +1349,25 @@ await sendText(from, "Work location preference?\n1) Same work city\n2) Any work 
       return;
     }
 
-    // ===================== REGISTRATION FLOW =====================
+    // ===================== ONBOARDING DECISION =====================
+    if (st.step === "ONBOARDING_DECISION") {
+      if (!text || (!isYes1(text) && !isNo2(text))) {
+        await sendText(from, makeInvalidReplyMsg(getPromptByStep("ONBOARDING_DECISION", temp)));
+        return;
+      }
+
+      if (isNo2(text)) {
+        await setState(from, "", {});
+        await sendText(from, THANK_YOU_MARKETING_MSG);
+        return;
+      }
+
+      await setState(from, "ASK_NAME", {});
+      await sendText(from, getPromptByStep("ASK_NAME"));
+      return;
+    }
+
+    // ===================== REGISTRATION START =====================
     if (text && (cmd === "JOIN" || cmd === "NEWPROFILE")) {
       const existing = await findProfilesByPhone(from);
       if (existing.length >= MAX_PROFILES_PER_PHONE) {
@@ -1243,22 +1379,28 @@ await sendText(from, "Work location preference?\n1) Same work city\n2) Any work 
         return;
       }
 
-      await setState(from, "ASK_NAME", {});
-      await sendText(from, `${WELCOME_MSG}\n\nReply with your *Name*:\nतुमचे नाव पाठवा`);
+      await sendText(from, WELCOME_MSG);
+      await sendText(from, COMMANDS_MSG);
+      await setState(from, "ONBOARDING_DECISION", {});
       return;
     }
 
-    // If no step and not a command, guide
+    // ===================== NO ACTIVE STEP =====================
     if (!st.step) {
-      if (text) await sendText(from, WELCOME_MSG);
+      if (text) {
+        await sendText(from, WELCOME_MSG);
+        await sendText(from, COMMANDS_MSG);
+        await setState(from, "ONBOARDING_DECISION", {});
+      }
       return;
     }
 
+    // ===================== REGISTRATION FLOW =====================
     if (st.step === "ASK_NAME") {
       if (!text) return;
       temp.name = text;
       await setState(from, "ASK_SURNAME", temp);
-      await sendText(from, "Good. Now reply with your *Surname*:\nआडनाव पाठवा");
+      await sendText(from, getPromptByStep("ASK_SURNAME", temp));
       return;
     }
 
@@ -1266,38 +1408,43 @@ await sendText(from, "Work location preference?\n1) Same work city\n2) Any work 
       if (!text) return;
       temp.surname = text;
       await setState(from, "ASK_GENDER", temp);
-      await sendText(from, "Gender? Reply *Male* or *Female*:\nलिंग: Male / Female");
+      await sendText(from, getPromptByStep("ASK_GENDER", temp));
       return;
     }
 
     if (st.step === "ASK_GENDER") {
       if (!text) return;
-      const g = text.toLowerCase();
-      if (!(g === "male" || g === "female")) {
-        await sendText(from, "Please reply only *Male* or *Female*:\nफक्त Male किंवा Female लिहा");
+
+      const g = normalizeGender(text);
+      if (!g) {
+        await sendText(from, makeInvalidReplyMsg(getPromptByStep("ASK_GENDER", temp)));
         return;
       }
+
       temp.gender = g;
       await setState(from, "ASK_DOB", temp);
-      await sendText(from, "Date of Birth? Format: *DD-MM-YYYY* (example 05-11-1998)\nजन्मतारीख: DD-MM-YYYY");
+      await sendText(from, getPromptByStep("ASK_DOB", temp));
       return;
     }
 
     if (st.step === "ASK_DOB") {
       if (!text) return;
+
       const age = calcAgeFromDobDDMMYYYY(text);
       if (age === null) {
-        await sendText(from, "Please send DOB in *DD-MM-YYYY* format (example 05-11-1998)");
+        await sendText(from, makeInvalidReplyMsg(getPromptByStep("ASK_DOB", temp)));
         return;
       }
+
       if (age < MIN_AGE) {
         await setState(from, "", {});
         await sendText(from, `❌ Registration not allowed. Minimum age is ${MIN_AGE} years.`);
         return;
       }
+
       temp.date_of_birth = text;
       await setState(from, "ASK_HEIGHT", temp);
-      await sendText(from, "Height? (Example: 5'6 or 168 cm):\nउंची?");
+      await sendText(from, getPromptByStep("ASK_HEIGHT", temp));
       return;
     }
 
@@ -1305,7 +1452,7 @@ await sendText(from, "Work location preference?\n1) Same work city\n2) Any work 
       if (!text) return;
       temp.height = text;
       await setState(from, "ASK_RELIGION", temp);
-      await sendText(from, "Religion? (Example: Hindu / Muslim / Jain / Buddhist):\nधर्म?");
+      await sendText(from, getPromptByStep("ASK_RELIGION", temp));
       return;
     }
 
@@ -1313,7 +1460,7 @@ await sendText(from, "Work location preference?\n1) Same work city\n2) Any work 
       if (!text) return;
       temp.religion = text;
       await setState(from, "ASK_CASTE", temp);
-      await sendText(from, "Caste? (Example: Maratha / Brahmin / Kunbi / etc.):\nजात?");
+      await sendText(from, getPromptByStep("ASK_CASTE", temp));
       return;
     }
 
@@ -1321,10 +1468,7 @@ await sendText(from, "Work location preference?\n1) Same work city\n2) Any work 
       if (!text) return;
       temp.caste = text;
       await setState(from, "ASK_NATIVE_PLACE", temp);
-      await sendText(
-        from,
-        "तुमचे मूळ गाव कोणते आहे?\nWhat is your native place?\n\nउदा / Example: Satara / Kolhapur / Nandurbar"
-      );
+      await sendText(from, getPromptByStep("ASK_NATIVE_PLACE", temp));
       return;
     }
 
@@ -1332,7 +1476,7 @@ await sendText(from, "Work location preference?\n1) Same work city\n2) Any work 
       if (!text) return;
       temp.native_place = text;
       await setState(from, "ASK_DISTRICT", temp);
-      await sendText(from, "District? Example: Pune / Nashik / Mumbai Suburban:\nजिल्हा?");
+      await sendText(from, getPromptByStep("ASK_DISTRICT", temp));
       return;
     }
 
@@ -1340,37 +1484,37 @@ await sendText(from, "Work location preference?\n1) Same work city\n2) Any work 
       if (!text) return;
       temp.district = text;
       await setState(from, "ASK_WORK_CITY", temp);
-      await sendText(
-        from,
-        "सध्या तुम्ही कोणत्या शहरात काम करता?\nWhich city do you currently work in?\n\nउदा / Example: Pune / Mumbai / Nashik\n\nNative आणि Work city एकच असेल तर SAME लिहा.\nIf same as native place, type SAME."
-      );
+      await sendText(from, getPromptByStep("ASK_WORK_CITY", temp));
       return;
     }
 
     if (st.step === "ASK_WORK_CITY") {
       if (!text) return;
-      if (text.trim().toUpperCase() === "SAME") {
+
+      if (isSame(text)) {
         temp.work_city = temp.native_place || "";
       } else {
         temp.work_city = text;
       }
+
       await setState(from, "ASK_WORK_DISTRICT", temp);
-      await sendText(
-        from,
-        "कामाचा जिल्हा कोणता आहे?\nWhich district is your work location in?\n\nउदा / Example: Pune / Mumbai Suburban / Nashik\n\nमाहित नसेल तर SKIP लिहा.\nIf unknown, type SKIP."
-      );
+      await sendText(from, getPromptByStep("ASK_WORK_DISTRICT", temp));
       return;
     }
 
     if (st.step === "ASK_WORK_DISTRICT") {
       if (!text) return;
-      if (text.trim().toUpperCase() === "SKIP") {
+
+      if (isSkip(text)) {
         temp.work_district = "";
+      } else if (isSame(text)) {
+        temp.work_district = temp.district || "";
       } else {
         temp.work_district = text;
       }
+
       await setState(from, "ASK_EDU", temp);
-      await sendText(from, "Education? (Example: B.Com / BE / MBA):\nशिक्षण?");
+      await sendText(from, getPromptByStep("ASK_EDU", temp));
       return;
     }
 
@@ -1378,10 +1522,7 @@ await sendText(from, "Work location preference?\n1) Same work city\n2) Any work 
       if (!text) return;
       temp.education = text;
       await setState(from, "ASK_JOB", temp);
-      await sendText(
-        from,
-        "तुमचा व्यवसाय/नोकरी प्रकार काय?\nJob type? (Example: Government / Private / Business)\n\nउदा / Example: Govt / Private / Business"
-      );
+      await sendText(from, getPromptByStep("ASK_JOB", temp));
       return;
     }
 
@@ -1389,10 +1530,7 @@ await sendText(from, "Work location preference?\n1) Same work city\n2) Any work 
       if (!text) return;
       temp.job = text;
       await setState(from, "ASK_JOB_TITLE", temp);
-      await sendText(
-        from,
-        "तुम्ही नेमके काय काम करता?\nWhat exactly is your job role?\n\nउदा / Example:\nSoftware Engineer\nPolice Constable\nTeacher\nBusiness – Garments"
-      );
+      await sendText(from, getPromptByStep("ASK_JOB_TITLE", temp));
       return;
     }
 
@@ -1400,7 +1538,7 @@ await sendText(from, "Work location preference?\n1) Same work city\n2) Any work 
       if (!text) return;
       temp.job_title = text;
       await setState(from, "ASK_INCOME", temp);
-      await sendText(from, "Annual Income? (Example: 5 LPA / 10 LPA / 15 LPA):\nवार्षिक उत्पन्न?");
+      await sendText(from, getPromptByStep("ASK_INCOME", temp));
       return;
     }
 
@@ -1408,16 +1546,17 @@ await sendText(from, "Work location preference?\n1) Same work city\n2) Any work 
       if (!text) return;
       temp.income_annual = text;
       await setState(from, "ASK_PHOTO", temp);
-      await sendText(from, "Please send *one clear photo* (selfie or portrait). Photo is mandatory ✅\nफोटो पाठवा ✅");
+      await sendText(from, getPromptByStep("ASK_PHOTO", temp));
       return;
     }
 
-    // ---- Photo step ----
+    // ===================== PHOTO STEP =====================
     if (st.step === "ASK_PHOTO") {
       if (msgType !== "image") {
-        await sendText(from, "Please send a *PHOTO* (not text). Photo is mandatory ✅\nफोटो पाठवा ✅");
+        await sendText(from, makeInvalidReplyMsg(getPromptByStep("ASK_PHOTO", temp)));
         return;
       }
+
       const mediaId = msg.image?.id;
       if (!mediaId) {
         await sendText(from, "Photo not received properly. Please send again.");
@@ -1453,7 +1592,7 @@ await sendText(from, "Work location preference?\n1) Same work city\n2) Any work 
 
       await sendText(
         from,
-        `✅ Registration completed!\nYour Profile ID: *${profileId}*\n\n${BRAND_NAME}\n${BRAND_TAGLINE}\n\nStatus: *PENDING approval*.\nYou will get message after approval.\n\nType *MYPROFILES* to view your profiles.`
+        `✅ Registration completed!\nYour Profile ID: *${profileId}*\n\n💍 *${BRAND_NAME}*\n${BRAND_TAGLINE}\n\nStatus: *PENDING approval*.\nYou will get message after approval.\n\nType *MYPROFILES* to view your profiles.`
       );
       return;
     }
