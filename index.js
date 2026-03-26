@@ -4,18 +4,18 @@
 // Tagline: “नवीन नाती – विश्वासाने जोडलेली.”
 //
 // Features:
-// - Max 2 profiles per phone (JOIN/NewProfile blocked if 2)
+// - Max 2 profiles per phone
 // - MYPROFILES, DELETE MH-XXXX
-// - Admin approve/reject (restricted by ADMIN_PHONE)
+// - Admin approve/reject
 // - Only APPROVED can browse matches; results only APPROVED
-// - 18+ enforced on registration and results
-// - Photo stored permanently in Cloudinary; stored in profiles.photo_url (public URL)
-// - MATCHES: opposite gender + asks filters; shows 5 results + NEXT/PREV
-// - DETAILS MH-XXXX: max 5/month; sends WhatsApp image + details (without name)
-// - INTEREST MH-XXXX: max 5/month; notifies target; ACCEPT/REJECT to share contact
-// - requests sheet columns: A req_id, B from_profile_id, C to_profile_id, D status, E created_at, F type, G viewer_phone
+// - 18+ enforced
+// - Photo stored in Cloudinary
+// - MATCHES with filters + NEXT/PREV
+// - DETAILS without name
+// - INTEREST / ACCEPT / REJECT
+// - Interactive Buttons + Lists for eligible fields
 //
-// PROFILES SHEET (A–T) columns:
+// PROFILES SHEET (A–U) columns:
 // A profile_id
 // B phone
 // C name
@@ -32,10 +32,11 @@
 // N education
 // O job
 // P job_title
-// Q income_annual
+// Q income_annual   (stores monthly income range text now)
 // R photo_url
 // S status
 // T created_at
+// U marital_status
 
 require("dotenv").config();
 
@@ -58,7 +59,7 @@ function nowISO() {
 }
 
 function monthKey(isoString = nowISO()) {
-  return isoString.slice(0, 7); // YYYY-MM
+  return isoString.slice(0, 7);
 }
 
 function safeJsonParse(s, fallback) {
@@ -106,14 +107,6 @@ function cleanUpper(v) {
   return String(v || "").trim().toUpperCase();
 }
 
-function isYes1(v) {
-  return String(v || "").trim() === "1";
-}
-
-function isNo2(v) {
-  return String(v || "").trim() === "2";
-}
-
 function normalizeProfileId(v) {
   return String(v || "").trim().toUpperCase();
 }
@@ -137,6 +130,25 @@ function isSame(v) {
   return cleanUpper(v) === "SAME";
 }
 
+function incomeBandRank(v) {
+  const x = cleanLower(v);
+  if (x.includes("above 3") || x.includes("3l+")) return 4;
+  if (x.includes("1,00,000") || x.includes("1l – 3l") || x.includes("1l-3l")) return 3;
+  if (x.includes("50") && x.includes("1l")) return 2;
+  if (x.includes("up to 50") || x.includes("upto 50")) return 1;
+  return null;
+}
+
+function maritalStatusFromInput(v) {
+  const x = cleanLower(v);
+  if (x.includes("unmarried") || x.includes("अविवाहित")) return "Unmarried";
+  if (x.includes("divorce") || x.includes("घटस्फोट")) return "Divorce";
+  if (x.includes("widower") || x.includes("widow") || x.includes("विधुर") || x.includes("विधवा")) {
+    return "Widower/Widow";
+  }
+  return "";
+}
+
 // ===================== ENV =====================
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "";
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || "";
@@ -149,13 +161,13 @@ const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "";
 const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET || "";
 
 if (!VERIFY_TOKEN || !WHATSAPP_TOKEN || !PHONE_NUMBER_ID || !SHEET_ID) {
-  console.warn("⚠️ Missing required env vars. Check VERIFY_TOKEN, WHATSAPP_TOKEN, PHONE_NUMBER_ID, GOOGLE_SHEET_ID.");
+  console.warn("⚠️ Missing required env vars.");
 }
 if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
   console.warn("⚠️ Missing GOOGLE_SERVICE_ACCOUNT_JSON env var.");
 }
 if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
-  console.warn("⚠️ Missing Cloudinary env vars. Check CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET.");
+  console.warn("⚠️ Missing Cloudinary env vars.");
 }
 
 function isAdmin(from) {
@@ -164,10 +176,14 @@ function isAdmin(from) {
   return f === ADMIN_PHONE || f.slice(-10) === ADMIN_PHONE.slice(-10);
 }
 
-// ===================== Branding =====================
+// ===================== Branding / Constants =====================
 const BRAND_NAME = "Vivaho";
 const BRAND_SUBTITLE = "Matrimony Service";
 const BRAND_TAGLINE = "नवीन नाती – विश्वासाने जोडलेली.";
+
+const PROFILE_TAB = "profiles";
+const STATE_TAB = "state";
+const REQUESTS_TAB = "requests";
 
 const MAX_PROFILES_PER_PHONE = 2;
 const MIN_AGE = 18;
@@ -175,121 +191,88 @@ const MAX_DETAILS_PER_MONTH = 5;
 const MAX_INTEREST_PER_MONTH = 5;
 const RESULTS_PAGE_SIZE = 5;
 
-const PROFILE_TAB = "profiles";
-const STATE_TAB = "state";
-const REQUESTS_TAB = "requests";
-
 // ===================== Messages =====================
 const WELCOME_MSG =
 `💍 *${BRAND_NAME}*
 ${BRAND_SUBTITLE}
 ${BRAND_TAGLINE}
 
-विश्वासाने जुळवा योग्य स्थळ ❤️
-Find the right match with trust.`;
+Find the right match with trust ❤️
+विश्वास के साथ सही रिश्ता चुनिए।`;
 
 const COMMANDS_MSG =
-`📘 *${BRAND_NAME} वापरण्याची पद्धत / How it works*
+`📘 *${BRAND_NAME} कैसे काम करता है / How it works*
 
-*JOIN* → नवीन प्रोफाइल तयार करा
-*MATCHES* → योग्य स्थळ शोधा
-*DETAILS MH-XXXX* → प्रोफाइलची माहिती पहा
-*INTEREST MH-XXXX* → आवड दर्शवा
-*MYPROFILES* → तुमची प्रोफाइल्स पहा
-*DELETE MH-XXXX* → प्रोफाइल डिलीट करा
-*STOP* → चालू प्रक्रिया थांबवा
+*JOIN* → Create profile / प्रोफाइल बनाइए
+*MATCHES* → Find matches / रिश्ते देखिए
+*DETAILS MH-XXXX* → Full profile info
+*INTEREST MH-XXXX* → Show interest
+*MYPROFILES* → Your profiles
+*DELETE MH-XXXX* → Delete profile
+*STOP* → Stop current process
 
-⏳ प्रोफाइल *Approved* झाल्यानंतरच तुम्ही MATCHES / DETAILS / INTEREST वापरू शकता.
-
-पुढे जाण्यासाठी *1* पाठवा
-थांबवण्यासाठी *2* पाठवा`;
+⏳ Only *APPROVED* profiles can use MATCHES / DETAILS / INTEREST.`;
 
 const THANK_YOU_MARKETING_MSG =
 `🙏 Thank you for connecting with *${BRAND_NAME}*.
 
-तुमच्या मनासारखा जोडीदार शोधण्यासाठी आम्हाला पुन्हा मेसेज करा ❤️
+अपने मनपसंद life partner के लिए फिर से message कीजिए ❤️
 
-📩 प्रोफाइल सुरू करण्यासाठी कधीही *JOIN* पाठवा.
+📩 Start anytime with *JOIN*
 
-*${BRAND_NAME}*  
+*${BRAND_NAME}*
 ${BRAND_TAGLINE}`;
 
 const PENDING_MSG =
 `💍 *${BRAND_NAME}*
 
-तुमचे प्रोफाइल अजून *Approved* झालेले नाही.
 Your profile is not approved yet.
+आपका प्रोफाइल अभी approve नहीं हुआ है।
 
-⏳ कृपया Admin approval साठी थोडा वेळ प्रतीक्षा करा.
-Please wait for admin approval.
+⏳ Please wait for admin approval.
+Admin approval के बाद *MATCHES* भेजिए।`;
 
-Approved झाल्यानंतर स्थळ शोधण्यासाठी *MATCHES* लिहा.`;
+function makeInvalidReplyMsg(originalPrompt) {
+  return `❌ Invalid response.
 
-const DETAILS_INTEREST_LOCK_MSG =
-`💍 *${BRAND_NAME}*
+Please tap the correct option or type *STOP* to cancel.
 
-⏳ Your profile is not approved yet.
-Please wait for admin approval.
-
-Only APPROVED users can use DETAILS and INTEREST.
-
-${BRAND_TAGLINE}`;
+${originalPrompt}`;
+}
 
 function getPromptByStep(step, temp = {}) {
   switch (step) {
-    case "ONBOARDING_DECISION":
-      return COMMANDS_MSG;
     case "ASK_NAME":
-      return `${WELCOME_MSG}\n\nReply with your *Name*:\nतुमचे नाव पाठवा`;
+      return "Please enter your *Name*\nकृपया अपना *नाम* लिखें";
     case "ASK_SURNAME":
-      return "Good. Now reply with your *Surname*:\nआडनाव पाठवा";
-    case "ASK_GENDER":
-      return "Gender? Reply *Male* or *Female*:\nलिंग: Male / Female";
+      return "Please enter your *Surname*\nकृपया अपना *Surname / उपनाम* लिखें";
     case "ASK_DOB":
-      return "Date of Birth? Format: *DD-MM-YYYY* (example 05-11-1998)\nजन्मतारीख: DD-MM-YYYY";
+      return "Enter Date of Birth\nजन्मतिथि लिखें\n\nFormat: *DD-MM-YYYY*\nExample: 05-11-1998";
     case "ASK_HEIGHT":
-      return "Height? (Example: 5'6 or 168 cm):\nउंची?";
+      return "Enter Height\nऊंचाई लिखें\n\nExample: *5'6* or *168 cm*";
     case "ASK_RELIGION":
-      return "Religion? (Example: Hindu / Muslim / Jain / Buddhist):\nधर्म?";
+      return "Enter Religion\nधर्म लिखें\n\nExample: Hindu / Muslim / Jain / Buddhist";
     case "ASK_CASTE":
-      return "Caste? (Example: Maratha / Brahmin / Kunbi / etc.):\nजात?";
+      return "Enter Caste\nजात लिखें";
     case "ASK_NATIVE_PLACE":
-      return "तुमचे मूळ गाव कोणते आहे?\nWhat is your native place?\n\nउदा / Example: Satara / Kolhapur / Nandurbar";
+      return "Enter Native Place\nमूल गांव / Native Place लिखें";
     case "ASK_DISTRICT":
-      return "District? Example: Pune / Nashik / Mumbai Suburban:\nजिल्हा?";
+      return "Enter District\nजिला लिखें";
     case "ASK_WORK_CITY":
-      return "सध्या तुम्ही कोणत्या शहरात काम करता?\nWhich city do you currently work in?\n\nउदा / Example: Pune / Mumbai / Nashik\n\nNative आणि Work city एकच असेल तर SAME लिहा.\nIf same as native place, type SAME.";
+      return "Enter Work City\nकाम का शहर लिखें\n\nIf same as native place, type *SAME*";
     case "ASK_WORK_DISTRICT":
-      return "कामाचा जिल्हा कोणता आहे?\nWhich district is your work location in?\n\nउदा / Example: Pune / Mumbai Suburban / Nashik\n\nमाहित नसेल तर SKIP लिहा.\nIf unknown, type SKIP.";
+      return "Enter Work District\nकाम का जिला लिखें\n\nIf same as district, type *SAME*\nIf unknown, type *SKIP*";
     case "ASK_EDU":
-      return "Education? (Example: B.Com / BE / MBA):\nशिक्षण?";
-    case "ASK_JOB":
-      return "तुमचा व्यवसाय/नोकरी प्रकार काय?\nJob type? (Example: Government / Private / Business)\n\nउदा / Example: Govt / Private / Business";
+      return "Enter Education\nशिक्षा लिखें\n\nExample: B.Com / BE / MBA";
     case "ASK_JOB_TITLE":
-      return "तुम्ही नेमके काय काम करता?\nWhat exactly is your job role?\n\nउदा / Example:\nSoftware Engineer\nPolice Constable\nTeacher\nBusiness – Garments";
-    case "ASK_INCOME":
-      return "Annual Income? (Example: 5 LPA / 10 LPA / 15 LPA):\nवार्षिक उत्पन्न?";
+      return "Enter your Job Role\nआप क्या काम करते हैं?\n\nExample: Software Engineer / Teacher / Business Owner";
     case "ASK_PHOTO":
-      return "Please send *one clear photo* (selfie or portrait). Photo is mandatory ✅\nफोटो पाठवा ✅";
-    case "SEARCH_CITY_SCOPE":
-      return `Search preferences:\n1) Same Native Place (${temp?.search?.user_city || "your native place"})\n2) Any Native Place in Maharashtra\n\nReply 1 or 2`;
-    case "SEARCH_WORK_CITY_SCOPE":
-      return "Work location preference?\n1) Same work city\n2) Any work city\nReply 1 or 2";
+      return "Please send one clear photo 📸\nकृपया एक साफ फोटो भेजें";
     case "SEARCH_AGE_RANGE":
-      return "Preferred age range? Example: 23-30\nType SKIP for default (21-40).";
-    case "SEARCH_CASTE_SCOPE":
-      return `Caste preference?\n1) Same caste (${temp?.search?.user_caste || "your caste"})\n2) Any caste\nReply 1 or 2`;
-    case "SEARCH_EDU_MIN":
-      return "Minimum education?\n1) Any\n2) Graduate\n3) Postgraduate\nReply 1/2/3";
-    case "SEARCH_INCOME_MIN":
-      return "Minimum income (LPA)? Example: 5\nType SKIP for any.";
+      return "Enter preferred age range\nपसंदीदा उम्र सीमा लिखें\n\nExample: *23-30*\nOr type *SKIP*";
     default:
       return "";
   }
-}
-
-function makeInvalidReplyMsg(originalPrompt) {
-  return `❌ Invalid response.\n\nकृपया *STOP* टाइप करा if you want to cancel.\nPlease reply only with the expected answer.\n\n${originalPrompt}`;
 }
 
 // ===================== Cloudinary =====================
@@ -346,10 +329,7 @@ async function getSheetsClient() {
 // ===================== WhatsApp Cloud API =====================
 async function sendText(to, body) {
   const phone = normalizePhone(to);
-  if (!phone) {
-    console.log("sendText skipped: empty phone");
-    return;
-  }
+  if (!phone) return;
 
   const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
 
@@ -370,7 +350,6 @@ async function sendText(to, body) {
         timeout: 20000,
       }
     );
-
     console.log("sendText success:", JSON.stringify(resp.data));
   } catch (err) {
     console.error("sendText failed:", JSON.stringify(err?.response?.data || err.message));
@@ -384,30 +363,112 @@ async function sendImageByLink(to, imageLink, caption = "") {
 
   const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
 
-  try {
-    await axios.post(
-      url,
-      {
-        messaging_product: "whatsapp",
-        to: phone,
-        type: "image",
-        image: {
-          link: imageLink,
-          ...(caption ? { caption } : {}),
+  await axios.post(
+    url,
+    {
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "image",
+      image: { link: imageLink, ...(caption ? { caption } : {}) },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      timeout: 20000,
+    }
+  );
+}
+
+async function sendButtons(to, body, buttons) {
+  const phone = normalizePhone(to);
+  if (!phone || !Array.isArray(buttons) || buttons.length === 0 || buttons.length > 3) return;
+
+  const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
+
+  await axios.post(
+    url,
+    {
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "interactive",
+      interactive: {
+        type: "button",
+        body: { text: body },
+        action: {
+          buttons: buttons.map((b) => ({
+            type: "reply",
+            reply: {
+              id: String(b.id).slice(0, 256),
+              title: String(b.title).slice(0, 20),
+            },
+          })),
         },
       },
-      {
-        headers: {
-          Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-          "Content-Type": "application/json",
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      timeout: 20000,
+    }
+  );
+}
+
+async function sendList(to, body, buttonText, rows, sectionTitle = "Select") {
+  const phone = normalizePhone(to);
+  if (!phone || !Array.isArray(rows) || !rows.length) return;
+
+  const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
+
+  await axios.post(
+    url,
+    {
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "interactive",
+      interactive: {
+        type: "list",
+        body: { text: body },
+        action: {
+          button: buttonText || "Select",
+          sections: [
+            {
+              title: sectionTitle,
+              rows: rows.map((r) => ({
+                id: String(r.id).slice(0, 256),
+                title: String(r.title).slice(0, 24),
+                ...(r.description ? { description: String(r.description).slice(0, 72) } : {}),
+              })),
+            },
+          ],
         },
-        timeout: 20000,
-      }
-    );
-  } catch (err) {
-    console.error("sendImageByLink failed:", JSON.stringify(err?.response?.data || err.message));
-    throw err;
-  }
+      },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      timeout: 20000,
+    }
+  );
+}
+
+async function sendJoinStopButtons(to, body = "Choose an option\nकृपया एक विकल्प चुनें") {
+  await sendButtons(to, body, [
+    { id: "JOIN", title: "JOIN" },
+    { id: "STOP", title: "STOP" },
+  ]);
+}
+
+async function sendProceedStopButtons(to) {
+  await sendButtons(to, "Do you want to continue?\nक्या आप आगे बढ़ना चाहते हैं?", [
+    { id: "PROCEED", title: "Proceed" },
+    { id: "STOP", title: "Stop" },
+  ]);
 }
 
 async function getMetaMediaUrl(mediaId) {
@@ -487,7 +548,7 @@ async function getAllProfilesRows() {
   const sheets = await getSheetsClient();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${PROFILE_TAB}!A:T`,
+    range: `${PROFILE_TAB}!A:U`,
   });
   return res.data.values || [];
 }
@@ -515,9 +576,10 @@ function profileRowToObj(row, rowIndex1Based) {
     photo_url: row?.[17] || "",
     status: cleanUpper(row?.[18] || ""),
     created_at: row?.[19] || "",
+    marital_status: row?.[20] || "",
   };
 
-  obj.city = obj.native_place; // backward compatibility
+  obj.city = obj.native_place;
   return obj;
 }
 
@@ -598,31 +660,32 @@ async function createProfile(phone, temp) {
   const createdAt = nowISO();
 
   const row = [
-    profile_id,
-    phone,
-    temp.name || "",
-    temp.surname || "",
-    temp.gender || "",
-    temp.date_of_birth || "",
-    temp.religion || "",
-    temp.height || "",
-    temp.caste || "",
-    temp.native_place || "",
-    temp.district || "",
-    temp.work_city || "",
-    temp.work_district || "",
-    temp.education || "",
-    temp.job || "",
-    temp.job_title || "",
-    temp.income_annual || "",
-    temp.photo_url || "",
-    "PENDING",
-    createdAt,
+    profile_id,                // A
+    phone,                     // B
+    temp.name || "",           // C
+    temp.surname || "",        // D
+    temp.gender || "",         // E
+    temp.date_of_birth || "",  // F
+    temp.religion || "",       // G
+    temp.height || "",         // H
+    temp.caste || "",          // I
+    temp.native_place || "",   // J
+    temp.district || "",       // K
+    temp.work_city || "",      // L
+    temp.work_district || "",  // M
+    temp.education || "",      // N
+    temp.job || "",            // O
+    temp.job_title || "",      // P
+    temp.income_annual || "",  // Q
+    temp.photo_url || "",      // R
+    "PENDING",                 // S
+    createdAt,                 // T
+    temp.marital_status || "", // U
   ];
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: `${PROFILE_TAB}!A:T`,
+    range: `${PROFILE_TAB}!A:U`,
     valueInputOption: "RAW",
     requestBody: { values: [row] },
   });
@@ -726,6 +789,7 @@ Profile ID: ${profileId}
 Phone: ${phone}
 Name: ${(temp?.name || "")} ${(temp?.surname || "")}
 Gender: ${temp?.gender || ""}
+Marital Status: ${temp?.marital_status || ""}
 DOB: ${temp?.date_of_birth || ""}
 Height: ${temp?.height || ""}
 Religion: ${temp?.religion || ""}
@@ -752,12 +816,6 @@ function educationRank(edu) {
   if (e.includes("mba") || e.includes("mtech") || e.includes("ms") || e.includes("post")) return 3;
   if (e.includes("be") || e.includes("btech") || e.includes("b.") || e.includes("graduate")) return 2;
   return 1;
-}
-
-function parseIncomeLPA(incomeText) {
-  const m = (incomeText || "").match(/(\d+(\.\d+)?)/);
-  if (!m) return null;
-  return parseFloat(m[1]);
 }
 
 function buildProfileCardLine(p) {
@@ -801,9 +859,9 @@ function applyFiltersToApprovedProfiles(allProfiles, opts) {
       if (educationRank(p.education) < opts.eduMinRank) continue;
     }
 
-    if (opts.incomeMin !== null) {
-      const lpa = parseIncomeLPA(p.income_annual);
-      if (lpa === null || lpa < opts.incomeMin) continue;
+    if (opts.incomeMinRank !== null) {
+      const rank = incomeBandRank(p.income_annual);
+      if (rank === null || rank < opts.incomeMinRank) continue;
     }
 
     out.push(p);
@@ -815,7 +873,7 @@ function applyFiltersToApprovedProfiles(allProfiles, opts) {
 async function sendResultsPage(to, searchState) {
   const { results = [], page = 0 } = searchState;
   if (!results.length) {
-    await sendText(to, `💍 *${BRAND_NAME}*\n\nNo matches found with your preferences.\nTry again with different filters.`);
+    await sendText(to, `💍 *${BRAND_NAME}*\n\nNo matches found.\nकोई matching profile नहीं मिला।`);
     return;
   }
 
@@ -857,26 +915,57 @@ app.post("/webhook", async (req, res) => {
     const from = normalizePhone(msg.from);
     const msgType = msg.type;
     const text = (msg.text?.body || "").trim();
+    const interactiveId =
+      msg.interactive?.button_reply?.id ||
+      msg.interactive?.list_reply?.id ||
+      "";
+    const interactiveTitle =
+      msg.interactive?.button_reply?.title ||
+      msg.interactive?.list_reply?.title ||
+      "";
 
     console.log("📩 Incoming Message:");
     console.log("From:", from);
     console.log("Type:", msgType);
     console.log("Text:", text);
+    console.log("Interactive ID:", interactiveId);
+    console.log("Interactive Title:", interactiveTitle);
     console.log("Full Payload:", JSON.stringify(msg, null, 2));
 
     const st = await getState(from);
     const temp = safeJsonParse(st.temp_data || "{}", {});
-    const { cmd, args } = parseCommand(text);
+    const rawInput = text || interactiveId || "";
+    const { cmd, args } = parseCommand(rawInput);
+
+    // ===================== GLOBAL BUTTON / SHORTCUT ACTIONS =====================
+    if (interactiveId.startsWith("DEL_PROFILE_")) {
+      const profileId = normalizeProfileId(interactiveId.replace("DEL_PROFILE_", ""));
+      const prof = await findProfileById(profileId);
+      if (!prof) {
+        await sendText(from, "Profile ID not found.");
+        return;
+      }
+      if (prof.phone !== from) {
+        await sendText(from, "❌ You can delete only your own profile.");
+        return;
+      }
+      await deleteProfileRow(prof.rowIndex);
+      await setState(from, "", {});
+      await sendText(from, `✅ Deleted ${profileId}.\n\nType *JOIN* to create a new profile.`);
+      await sendJoinStopButtons(from, "What would you like to do next?\nअब आगे क्या करना है?");
+      return;
+    }
 
     // ===================== GLOBAL CANCEL =====================
     if (cmd === "STOP" || cmd === "CANCEL") {
       await setState(from, "", {});
-      await sendText(from, `✅ Cancelled.\n\n${WELCOME_MSG}\n\nType *JOIN* to start again.`);
+      await sendText(from, `✅ Cancelled.\n\n${WELCOME_MSG}`);
+      await sendJoinStopButtons(from);
       return;
     }
 
     // ===================== ADMIN COMMANDS =====================
-    if (text && (cmd === "APPROVE" || cmd === "REJECT")) {
+    if (rawInput && (cmd === "APPROVE" || cmd === "REJECT")) {
       if (!isAdmin(from)) {
         await sendText(from, "❌ Only admin can approve/reject profiles.");
         return;
@@ -900,7 +989,7 @@ app.post("/webhook", async (req, res) => {
       if (cmd === "APPROVE") {
         await sendText(
           prof.phone,
-          `🎉 अभिनंदन! तुमचे प्रोफाइल *${profileId}* *Approved* झाले आहे.\n\n💍 *${BRAND_NAME}*\n${BRAND_TAGLINE}\n\nस्थळ शोधण्यासाठी *MATCHES* लिहा.\nType *MATCHES* to browse profiles.`
+          `🎉 Congratulations! Your profile *${profileId}* is now *APPROVED*.\n\n💍 *${BRAND_NAME}*\n${BRAND_TAGLINE}\n\nSend *MATCHES* to browse profiles.`
         );
         await sendText(from, `✅ Approved ${profileId}`);
       } else {
@@ -915,11 +1004,15 @@ app.post("/webhook", async (req, res) => {
 
     // ===================== RESULTS INVALID REPLY PROTECTION =====================
     if (st.step === "SEARCH_RESULTS") {
-      const valid = cmd === "NEXT" || cmd === "PREV" || cmd === "DETAILS" || cmd === "INTEREST";
+      const valid =
+        cmd === "NEXT" ||
+        cmd === "PREV" ||
+        cmd === "DETAILS" ||
+        cmd === "INTEREST";
       if (!valid) {
         await sendText(
           from,
-          "❌ Invalid response.\n\nPlease send one of these:\n*NEXT*\n*PREV*\n*DETAILS MH-XXXX*\n*INTEREST MH-XXXX*\n\nOr type *STOP* to start again."
+          "❌ Invalid response.\n\nPlease send one of these:\n*NEXT*\n*PREV*\n*DETAILS MH-XXXX*\n*INTEREST MH-XXXX*\n\nOr type *STOP*."
         );
         return;
       }
@@ -929,14 +1022,15 @@ app.post("/webhook", async (req, res) => {
     if (cmd === "MYPROFILES") {
       const profiles = await findProfilesByPhone(from);
       if (!profiles.length) {
-        await sendText(from, `${WELCOME_MSG}\n\nType *JOIN* to create your profile.`);
+        await sendText(from, `${WELCOME_MSG}`);
+        await sendJoinStopButtons(from);
         return;
       }
 
       const lines = profiles.map((p) => `• ${p.profile_id} (${p.status || "PENDING"})`);
       await sendText(
         from,
-        `💍 *${BRAND_NAME}*\n\nYour profiles:\n${lines.join("\n")}\n\nDelete: *DELETE MH-XXXX*\nCreate new: *JOIN* (max ${MAX_PROFILES_PER_PHONE})`
+        `💍 *${BRAND_NAME}*\n\nYour profiles:\n${lines.join("\n")}\n\nDelete with *DELETE MH-XXXX*\nCreate new with *JOIN*`
       );
       return;
     }
@@ -967,7 +1061,8 @@ app.post("/webhook", async (req, res) => {
 
       await deleteProfileRow(prof.rowIndex);
       await setState(from, "", {});
-      await sendText(from, `✅ Deleted ${profileId}.\n\n💍 *${BRAND_NAME}*\nType *JOIN* to create a new profile.`);
+      await sendText(from, `✅ Deleted ${profileId}.\n\nType *JOIN* to create a new profile.`);
+      await sendJoinStopButtons(from, "What would you like to do next?\nअब आगे क्या करना है?");
       return;
     }
 
@@ -976,7 +1071,8 @@ app.post("/webhook", async (req, res) => {
       const profiles = await findProfilesByPhone(from);
 
       if (!profiles.length) {
-        await sendText(from, `${WELCOME_MSG}\n\nType *JOIN* to create your profile.`);
+        await sendText(from, `${WELCOME_MSG}`);
+        await sendJoinStopButtons(from, "No profile found. Please choose:\nकोई प्रोफाइल नहीं मिला।");
         return;
       }
 
@@ -988,7 +1084,7 @@ app.post("/webhook", async (req, res) => {
 
       const targetGender = oppositeGender(active.gender);
       if (!targetGender) {
-        await sendText(from, "Your gender is missing in profile. Please create a new profile.");
+        await sendText(from, "Gender missing in profile. Please create a new profile.");
         return;
       }
 
@@ -1004,13 +1100,16 @@ app.post("/webhook", async (req, res) => {
         ageMax: null,
         casteScope: null,
         eduMinRank: null,
-        incomeMin: null,
+        incomeMinRank: null,
         results: [],
         page: 0,
       };
 
       await setState(from, "SEARCH_CITY_SCOPE", temp);
-      await sendText(from, getPromptByStep("SEARCH_CITY_SCOPE", temp));
+      await sendButtons(from, "Native place preference\nNative place के लिए preference चुनें", [
+        { id: "SEARCH_NATIVE_SAME", title: "Same Native" },
+        { id: "SEARCH_NATIVE_ANY", title: "Any Native" },
+      ]);
       return;
     }
 
@@ -1023,7 +1122,7 @@ app.post("/webhook", async (req, res) => {
 
       const total = temp.search.results.length;
       if (!total) {
-        await sendText(from, "No search results. Type *MATCHES* to search again.");
+        await sendText(from, "No search results. Type *MATCHES* again.");
         return;
       }
 
@@ -1059,7 +1158,7 @@ app.post("/webhook", async (req, res) => {
 
       const used = await countThisMonth({ from_profile_id: active.profile_id, type: "DETAILS" });
       if (used >= MAX_DETAILS_PER_MONTH) {
-        await sendText(from, `⚠️ Monthly limit reached.\nYou can view maximum ${MAX_DETAILS_PER_MONTH} profile details per month.`);
+        await sendText(from, `⚠️ Monthly limit reached.\nMaximum ${MAX_DETAILS_PER_MONTH} details per month.`);
         return;
       }
 
@@ -1084,6 +1183,7 @@ app.post("/webhook", async (req, res) => {
 📄 Profile Details
 ID: ${target.profile_id}
 Gender: ${target.gender}
+Marital Status: ${target.marital_status || "NA"}
 Age: ${age !== null ? age : "NA"}
 
 Native: ${target.native_place}, ${target.district}
@@ -1135,7 +1235,7 @@ If interested: INTEREST ${target.profile_id}`;
 
       const used = await countThisMonth({ from_profile_id: active.profile_id, type: "INTEREST" });
       if (used >= MAX_INTEREST_PER_MONTH) {
-        await sendText(from, `⚠️ Monthly limit reached.\nYou can send maximum ${MAX_INTEREST_PER_MONTH} interests per month.`);
+        await sendText(from, `⚠️ Monthly limit reached.\nMaximum ${MAX_INTEREST_PER_MONTH} interests per month.`);
         return;
       }
 
@@ -1165,14 +1265,14 @@ If interested: INTEREST ${target.profile_id}`;
 
       await sendText(
         target.phone,
-        `💌 *${BRAND_NAME}*\n\nSomeone showed interest in you!\n\nInterested Profile ID: *${active.profile_id}*\n\nReply:\nACCEPT ${active.profile_id}\nREJECT ${active.profile_id}`
+        `💌 *${BRAND_NAME}*\n\nSomeone showed interest in you.\nकिसी ने आपके प्रोफाइल में interest दिखाया है।\n\nInterested Profile ID: *${active.profile_id}*\n\nReply:\nACCEPT ${active.profile_id}\nREJECT ${active.profile_id}`
       );
 
-      await sendText(from, `✅ Interest sent to ${target.profile_id}.\nYou will be notified if they accept.`);
+      await sendText(from, `✅ Interest sent to ${target.profile_id}.`);
       return;
     }
 
-    // ===================== ACCEPT / REJECT INTEREST =====================
+    // ===================== ACCEPT / REJECT =====================
     if (cmd === "ACCEPT" || cmd === "REJECT") {
       const interestedProfileId = normalizeProfileId(args[0]);
       if (!interestedProfileId) {
@@ -1181,7 +1281,7 @@ If interested: INTEREST ${target.profile_id}`;
       }
 
       if (!isValidProfileId(interestedProfileId)) {
-        await sendText(from, "❌ Invalid Profile ID format.\nUse: ACCEPT MH-XXXX  OR  REJECT MH-XXXX");
+        await sendText(from, "❌ Invalid Profile ID format.");
         return;
       }
 
@@ -1238,37 +1338,54 @@ If interested: INTEREST ${target.profile_id}`;
 
     // ===================== SEARCH FLOW =====================
     if (st.step === "SEARCH_CITY_SCOPE") {
-      if (!text || (!isYes1(text) && !isNo2(text))) {
-        await sendText(from, makeInvalidReplyMsg(getPromptByStep("SEARCH_CITY_SCOPE", temp)));
+      if (interactiveId === "SEARCH_NATIVE_SAME" || rawInput === "1") {
+        temp.search.cityScope = "SAME_CITY";
+      } else if (interactiveId === "SEARCH_NATIVE_ANY" || rawInput === "2") {
+        temp.search.cityScope = "ANY";
+      } else {
+        await sendText(from, makeInvalidReplyMsg("Please choose native preference."));
+        await sendButtons(from, "Native place preference\nNative place के लिए preference चुनें", [
+          { id: "SEARCH_NATIVE_SAME", title: "Same Native" },
+          { id: "SEARCH_NATIVE_ANY", title: "Any Native" },
+        ]);
         return;
       }
 
-      temp.search.cityScope = isYes1(text) ? "SAME_CITY" : "ANY";
       await setState(from, "SEARCH_WORK_CITY_SCOPE", temp);
-      await sendText(from, getPromptByStep("SEARCH_WORK_CITY_SCOPE", temp));
+      await sendButtons(from, "Work city preference\nWork city के लिए preference चुनें", [
+        { id: "SEARCH_WORK_SAME", title: "Same Work" },
+        { id: "SEARCH_WORK_ANY", title: "Any City" },
+      ]);
       return;
     }
 
     if (st.step === "SEARCH_WORK_CITY_SCOPE") {
-      if (!text || (!isYes1(text) && !isNo2(text))) {
-        await sendText(from, makeInvalidReplyMsg(getPromptByStep("SEARCH_WORK_CITY_SCOPE", temp)));
+      if (interactiveId === "SEARCH_WORK_SAME" || rawInput === "1") {
+        temp.search.workCityScope = "SAME_CITY";
+      } else if (interactiveId === "SEARCH_WORK_ANY" || rawInput === "2") {
+        temp.search.workCityScope = "ANY";
+      } else {
+        await sendText(from, makeInvalidReplyMsg("Please choose work city preference."));
+        await sendButtons(from, "Work city preference\nWork city के लिए preference चुनें", [
+          { id: "SEARCH_WORK_SAME", title: "Same Work" },
+          { id: "SEARCH_WORK_ANY", title: "Any City" },
+        ]);
         return;
       }
 
-      temp.search.workCityScope = isYes1(text) ? "SAME_CITY" : "ANY";
       await setState(from, "SEARCH_AGE_RANGE", temp);
       await sendText(from, getPromptByStep("SEARCH_AGE_RANGE", temp));
       return;
     }
 
     if (st.step === "SEARCH_AGE_RANGE") {
-      if (!text) return;
+      if (!rawInput) return;
 
-      if (isSkip(text)) {
+      if (isSkip(rawInput)) {
         temp.search.ageMin = 21;
         temp.search.ageMax = 40;
       } else {
-        const m = text.match(/^(\d{2})-(\d{2})$/);
+        const m = rawInput.match(/^(\d{2})-(\d{2})$/);
         if (!m) {
           await sendText(from, makeInvalidReplyMsg(getPromptByStep("SEARCH_AGE_RANGE", temp)));
           return;
@@ -1276,7 +1393,7 @@ If interested: INTEREST ${target.profile_id}`;
         const a1 = parseInt(m[1], 10);
         const a2 = parseInt(m[2], 10);
         if (!a1 || !a2 || a1 < MIN_AGE || a2 < MIN_AGE || a1 > a2) {
-          await sendText(from, `❌ Invalid age range.\nMinimum age must be ${MIN_AGE}+.\nExample: *23-30*\nOr type *STOP* to start again.`);
+          await sendText(from, `❌ Invalid age range.\nMinimum age must be ${MIN_AGE}+.`);
           return;
         }
         temp.search.ageMin = a1;
@@ -1284,46 +1401,99 @@ If interested: INTEREST ${target.profile_id}`;
       }
 
       await setState(from, "SEARCH_CASTE_SCOPE", temp);
-      await sendText(from, getPromptByStep("SEARCH_CASTE_SCOPE", temp));
+      await sendButtons(from, "Caste preference\nजात preference चुनें", [
+        { id: "SEARCH_CASTE_SAME", title: "Same Caste" },
+        { id: "SEARCH_CASTE_ANY", title: "Any Caste" },
+      ]);
       return;
     }
 
     if (st.step === "SEARCH_CASTE_SCOPE") {
-      if (!text || (!isYes1(text) && !isNo2(text))) {
-        await sendText(from, makeInvalidReplyMsg(getPromptByStep("SEARCH_CASTE_SCOPE", temp)));
+      if (interactiveId === "SEARCH_CASTE_SAME" || rawInput === "1") {
+        temp.search.casteScope = "SAME_CASTE";
+      } else if (interactiveId === "SEARCH_CASTE_ANY" || rawInput === "2") {
+        temp.search.casteScope = "ANY";
+      } else {
+        await sendText(from, makeInvalidReplyMsg("Please choose caste preference."));
+        await sendButtons(from, "Caste preference\nजात preference चुनें", [
+          { id: "SEARCH_CASTE_SAME", title: "Same Caste" },
+          { id: "SEARCH_CASTE_ANY", title: "Any Caste" },
+        ]);
         return;
       }
 
-      temp.search.casteScope = isYes1(text) ? "SAME_CASTE" : "ANY";
       await setState(from, "SEARCH_EDU_MIN", temp);
-      await sendText(from, getPromptByStep("SEARCH_EDU_MIN", temp));
+      await sendButtons(from, "Minimum education\nMinimum education चुनें", [
+        { id: "EDU_ANY", title: "Any" },
+        { id: "EDU_GRAD", title: "Graduate" },
+        { id: "EDU_POST", title: "Postgraduate" },
+      ]);
       return;
     }
 
     if (st.step === "SEARCH_EDU_MIN") {
-      if (!["1", "2", "3"].includes(text)) {
-        await sendText(from, makeInvalidReplyMsg(getPromptByStep("SEARCH_EDU_MIN", temp)));
+      if (interactiveId === "EDU_ANY" || rawInput === "1") {
+        temp.search.eduMinRank = null;
+      } else if (interactiveId === "EDU_GRAD" || rawInput === "2") {
+        temp.search.eduMinRank = 2;
+      } else if (interactiveId === "EDU_POST" || rawInput === "3") {
+        temp.search.eduMinRank = 3;
+      } else {
+        await sendText(from, makeInvalidReplyMsg("Please choose education preference."));
+        await sendButtons(from, "Minimum education\nMinimum education चुनें", [
+          { id: "EDU_ANY", title: "Any" },
+          { id: "EDU_GRAD", title: "Graduate" },
+          { id: "EDU_POST", title: "Postgrad" },
+        ]);
         return;
       }
 
-      temp.search.eduMinRank = text === "1" ? null : text === "2" ? 2 : 3;
       await setState(from, "SEARCH_INCOME_MIN", temp);
-      await sendText(from, getPromptByStep("SEARCH_INCOME_MIN", temp));
+      await sendList(
+        from,
+        "Minimum income preference\nMinimum income चुनें",
+        "Select",
+        [
+          { id: "MININC_1", title: "Up to 50,000" },
+          { id: "MININC_2", title: "50K - 1L" },
+          { id: "MININC_3", title: "1L - 3L" },
+          { id: "MININC_4", title: "Above 3L" },
+          { id: "MININC_SKIP", title: "No Preference" },
+        ],
+        "Income Range"
+      );
       return;
     }
 
     if (st.step === "SEARCH_INCOME_MIN") {
-      if (!text) return;
+      if (!rawInput) return;
 
-      if (isSkip(text)) {
-        temp.search.incomeMin = null;
+      if (interactiveId === "MININC_SKIP" || isSkip(rawInput)) {
+        temp.search.incomeMinRank = null;
+      } else if (interactiveId === "MININC_1") {
+        temp.search.incomeMinRank = 1;
+      } else if (interactiveId === "MININC_2") {
+        temp.search.incomeMinRank = 2;
+      } else if (interactiveId === "MININC_3") {
+        temp.search.incomeMinRank = 3;
+      } else if (interactiveId === "MININC_4") {
+        temp.search.incomeMinRank = 4;
       } else {
-        const v = parseFloat(text);
-        if (Number.isNaN(v) || v < 0) {
-          await sendText(from, makeInvalidReplyMsg(getPromptByStep("SEARCH_INCOME_MIN", temp)));
-          return;
-        }
-        temp.search.incomeMin = v;
+        await sendText(from, "Please select an income range.");
+        await sendList(
+          from,
+          "Minimum income preference\nMinimum income चुनें",
+          "Select",
+          [
+            { id: "MININC_1", title: "Up to 50,000" },
+            { id: "MININC_2", title: "50K - 1L" },
+            { id: "MININC_3", title: "1L - 3L" },
+            { id: "MININC_4", title: "Above 3L" },
+            { id: "MININC_SKIP", title: "No Preference" },
+          ],
+          "Income Range"
+        );
+        return;
       }
 
       const allRows = await getAllProfilesRows();
@@ -1344,7 +1514,7 @@ If interested: INTEREST ${target.profile_id}`;
         casteScope: temp.search.casteScope,
         userCaste: temp.search.user_caste,
         eduMinRank: temp.search.eduMinRank,
-        incomeMin: temp.search.incomeMin,
+        incomeMinRank: temp.search.incomeMinRank,
       });
 
       temp.search.results = results;
@@ -1357,86 +1527,149 @@ If interested: INTEREST ${target.profile_id}`;
 
     // ===================== ONBOARDING DECISION =====================
     if (st.step === "ONBOARDING_DECISION") {
-      if (!text || (!isYes1(text) && !isNo2(text))) {
-        await sendText(from, makeInvalidReplyMsg(getPromptByStep("ONBOARDING_DECISION", temp)));
+      if (interactiveId === "PROCEED" || cmd === "JOIN" || cmd === "PROCEED") {
+        await setState(from, "ASK_NAME", {});
+        await sendText(from, getPromptByStep("ASK_NAME"));
         return;
       }
 
-      if (isNo2(text)) {
+      if (interactiveId === "STOP" || cmd === "STOP") {
         await setState(from, "", {});
         await sendText(from, THANK_YOU_MARKETING_MSG);
         return;
       }
 
-      await setState(from, "ASK_NAME", {});
-      await sendText(from, getPromptByStep("ASK_NAME"));
+      await sendText(from, makeInvalidReplyMsg("Please choose Proceed or Stop."));
+      await sendProceedStopButtons(from);
       return;
     }
 
     // ===================== REGISTRATION START =====================
-    if (text && (cmd === "JOIN" || cmd === "NEWPROFILE")) {
+    if (rawInput && (cmd === "JOIN" || cmd === "NEWPROFILE")) {
       const existing = await findProfilesByPhone(from);
+
       if (existing.length >= MAX_PROFILES_PER_PHONE) {
         const lines = existing.map((p) => `• ${p.profile_id} (${p.status || "PENDING"})`).join("\n");
         await sendText(
           from,
-          `⚠️ You already have ${existing.length} profiles (max ${MAX_PROFILES_PER_PHONE}).\n\n${lines}\n\nDelete one first:\nDELETE MH-XXXX\nOr type MYPROFILES`
+          `⚠️ You already have ${existing.length} profiles (max ${MAX_PROFILES_PER_PHONE}).
+
+${lines}
+
+Delete one first:`
         );
+
+        const deleteButtons = existing.slice(0, 2).map((p) => ({
+          id: `DEL_PROFILE_${p.profile_id}`,
+          title: p.profile_id,
+        }));
+
+        await sendButtons(from, "Tap a profile to delete\nजिस profile को delete करना है उसे tap करें", deleteButtons);
         return;
       }
 
       await sendText(from, WELCOME_MSG);
       await sendText(from, COMMANDS_MSG);
       await setState(from, "ONBOARDING_DECISION", {});
+      await sendProceedStopButtons(from);
       return;
     }
 
     // ===================== NO ACTIVE STEP =====================
     if (!st.step) {
-      if (text) {
+      if (rawInput) {
         await sendText(from, WELCOME_MSG);
         await sendText(from, COMMANDS_MSG);
         await setState(from, "ONBOARDING_DECISION", {});
+        await sendProceedStopButtons(from);
       }
       return;
     }
 
     // ===================== REGISTRATION FLOW =====================
     if (st.step === "ASK_NAME") {
-      if (!text) return;
-      temp.name = text;
+      if (!rawInput) return;
+      temp.name = rawInput;
       await setState(from, "ASK_SURNAME", temp);
       await sendText(from, getPromptByStep("ASK_SURNAME", temp));
       return;
     }
 
     if (st.step === "ASK_SURNAME") {
-      if (!text) return;
-      temp.surname = text;
+      if (!rawInput) return;
+      temp.surname = rawInput;
       await setState(from, "ASK_GENDER", temp);
-      await sendText(from, getPromptByStep("ASK_GENDER", temp));
+      await sendButtons(from, "Select Gender\nलिंग चुनें", [
+        { id: "GENDER_MALE", title: "Male" },
+        { id: "GENDER_FEMALE", title: "Female" },
+      ]);
       return;
     }
 
     if (st.step === "ASK_GENDER") {
-      if (!text) return;
+      let g = "";
+      if (interactiveId === "GENDER_MALE") g = "male";
+      else if (interactiveId === "GENDER_FEMALE") g = "female";
+      else g = normalizeGender(rawInput);
 
-      const g = normalizeGender(text);
       if (!g) {
-        await sendText(from, makeInvalidReplyMsg(getPromptByStep("ASK_GENDER", temp)));
+        await sendText(from, makeInvalidReplyMsg("Please select gender."));
+        await sendButtons(from, "Select Gender\nलिंग चुनें", [
+          { id: "GENDER_MALE", title: "Male" },
+          { id: "GENDER_FEMALE", title: "Female" },
+        ]);
         return;
       }
 
       temp.gender = g;
+      await setState(from, "ASK_MARITAL_STATUS", temp);
+      await sendList(
+        from,
+        "Your Marital Status (तुमची वैवाहिक स्थिती)",
+        "Select",
+        [
+          { id: "MARITAL_UNMARRIED", title: "Unmarried", description: "अविवाहित" },
+          { id: "MARITAL_DIVORCE", title: "Divorce", description: "घटस्फोटीत" },
+          { id: "MARITAL_WIDOW", title: "Widower/Widow", description: "विधुर/विधवा" },
+        ],
+        "Marital Status"
+      );
+      return;
+    }
+
+    if (st.step === "ASK_MARITAL_STATUS") {
+      let ms = "";
+      if (interactiveId === "MARITAL_UNMARRIED") ms = "Unmarried";
+      else if (interactiveId === "MARITAL_DIVORCE") ms = "Divorce";
+      else if (interactiveId === "MARITAL_WIDOW") ms = "Widower/Widow";
+      else ms = maritalStatusFromInput(rawInput);
+
+      if (!ms) {
+        await sendText(from, "Please select marital status.");
+        await sendList(
+          from,
+          "Your Marital Status (तुमची वैवाहिक स्थिती)",
+          "Select",
+          [
+            { id: "MARITAL_UNMARRIED", title: "Unmarried", description: "अविवाहित" },
+            { id: "MARITAL_DIVORCE", title: "Divorce", description: "घटस्फोटीत" },
+            { id: "MARITAL_WIDOW", title: "Widower/Widow", description: "विधुर/विधवा" },
+          ],
+          "Marital Status"
+        );
+        return;
+      }
+
+      temp.marital_status = ms;
       await setState(from, "ASK_DOB", temp);
       await sendText(from, getPromptByStep("ASK_DOB", temp));
       return;
     }
 
     if (st.step === "ASK_DOB") {
-      if (!text) return;
+      if (!rawInput) return;
 
-      const age = calcAgeFromDobDDMMYYYY(text);
+      const age = calcAgeFromDobDDMMYYYY(rawInput);
       if (age === null) {
         await sendText(from, makeInvalidReplyMsg(getPromptByStep("ASK_DOB", temp)));
         return;
@@ -1444,64 +1677,61 @@ If interested: INTEREST ${target.profile_id}`;
 
       if (age < MIN_AGE) {
         await setState(from, "", {});
-        await sendText(from, `❌ Registration not allowed. Minimum age is ${MIN_AGE} years.`);
+        await sendText(from, `❌ Registration not allowed. Minimum age is ${MIN_AGE}.`);
         return;
       }
 
-      temp.date_of_birth = text;
+      temp.date_of_birth = rawInput;
       await setState(from, "ASK_HEIGHT", temp);
       await sendText(from, getPromptByStep("ASK_HEIGHT", temp));
       return;
     }
 
     if (st.step === "ASK_HEIGHT") {
-      if (!text) return;
-      temp.height = text;
+      if (!rawInput) return;
+      temp.height = rawInput;
       await setState(from, "ASK_RELIGION", temp);
       await sendText(from, getPromptByStep("ASK_RELIGION", temp));
       return;
     }
 
     if (st.step === "ASK_RELIGION") {
-      if (!text) return;
-      temp.religion = text;
+      if (!rawInput) return;
+      temp.religion = rawInput;
       await setState(from, "ASK_CASTE", temp);
       await sendText(from, getPromptByStep("ASK_CASTE", temp));
       return;
     }
 
     if (st.step === "ASK_CASTE") {
-      if (!text) return;
-      temp.caste = text;
+      if (!rawInput) return;
+      temp.caste = rawInput;
       await setState(from, "ASK_NATIVE_PLACE", temp);
       await sendText(from, getPromptByStep("ASK_NATIVE_PLACE", temp));
       return;
     }
 
     if (st.step === "ASK_NATIVE_PLACE") {
-      if (!text) return;
-      temp.native_place = text;
+      if (!rawInput) return;
+      temp.native_place = rawInput;
       await setState(from, "ASK_DISTRICT", temp);
       await sendText(from, getPromptByStep("ASK_DISTRICT", temp));
       return;
     }
 
     if (st.step === "ASK_DISTRICT") {
-      if (!text) return;
-      temp.district = text;
+      if (!rawInput) return;
+      temp.district = rawInput;
       await setState(from, "ASK_WORK_CITY", temp);
       await sendText(from, getPromptByStep("ASK_WORK_CITY", temp));
       return;
     }
 
     if (st.step === "ASK_WORK_CITY") {
-      if (!text) return;
+      if (!rawInput) return;
 
-      if (isSame(text)) {
-        temp.work_city = temp.native_place || "";
-      } else {
-        temp.work_city = text;
-      }
+      if (isSame(rawInput)) temp.work_city = temp.native_place || "";
+      else temp.work_city = rawInput;
 
       await setState(from, "ASK_WORK_DISTRICT", temp);
       await sendText(from, getPromptByStep("ASK_WORK_DISTRICT", temp));
@@ -1509,48 +1739,102 @@ If interested: INTEREST ${target.profile_id}`;
     }
 
     if (st.step === "ASK_WORK_DISTRICT") {
-      if (!text) return;
+      if (!rawInput) return;
 
-      if (isSkip(text)) {
-        temp.work_district = "";
-      } else if (isSame(text)) {
-        temp.work_district = temp.district || "";
-      } else {
-        temp.work_district = text;
-      }
+      if (isSkip(rawInput)) temp.work_district = "";
+      else if (isSame(rawInput)) temp.work_district = temp.district || "";
+      else temp.work_district = rawInput;
 
       await setState(from, "ASK_EDU", temp);
-      await sendText(from, getPromptByStep("ASK_EDU", temp));
+      await sendText(from, "Enter Education\nशिक्षा लिखें\n\nExample: B.Com / BE / MBA");
       return;
     }
 
     if (st.step === "ASK_EDU") {
-      if (!text) return;
-      temp.education = text;
+      if (!rawInput) return;
+      temp.education = rawInput;
       await setState(from, "ASK_JOB", temp);
-      await sendText(from, getPromptByStep("ASK_JOB", temp));
+      await sendButtons(from, "Select Job Type\nनौकरी / काम का प्रकार चुनें", [
+        { id: "JOB_GOVT", title: "Government" },
+        { id: "JOB_PRIVATE", title: "Private" },
+        { id: "JOB_BUSINESS", title: "Business" },
+      ]);
       return;
     }
 
     if (st.step === "ASK_JOB") {
-      if (!text) return;
-      temp.job = text;
+      let job = "";
+      if (interactiveId === "JOB_GOVT") job = "Government";
+      else if (interactiveId === "JOB_PRIVATE") job = "Private";
+      else if (interactiveId === "JOB_BUSINESS") job = "Business";
+      else {
+        const x = cleanLower(rawInput);
+        if (x.includes("gov")) job = "Government";
+        else if (x.includes("private")) job = "Private";
+        else if (x.includes("business")) job = "Business";
+      }
+
+      if (!job) {
+        await sendText(from, "Please select job type.");
+        await sendButtons(from, "Select Job Type\nनौकरी / काम का प्रकार चुनें", [
+          { id: "JOB_GOVT", title: "Government" },
+          { id: "JOB_PRIVATE", title: "Private" },
+          { id: "JOB_BUSINESS", title: "Business" },
+        ]);
+        return;
+      }
+
+      temp.job = job;
       await setState(from, "ASK_JOB_TITLE", temp);
       await sendText(from, getPromptByStep("ASK_JOB_TITLE", temp));
       return;
     }
 
     if (st.step === "ASK_JOB_TITLE") {
-      if (!text) return;
-      temp.job_title = text;
+      if (!rawInput) return;
+      temp.job_title = rawInput;
       await setState(from, "ASK_INCOME", temp);
-      await sendText(from, getPromptByStep("ASK_INCOME", temp));
+      await sendList(
+        from,
+        "Select Monthly Income\nमासिक आय चुनें",
+        "Select",
+        [
+          { id: "INC_1", title: "Up to 50,000" },
+          { id: "INC_2", title: "50,000 to 1,00,000" },
+          { id: "INC_3", title: "1,00,000 to 3,00,000" },
+          { id: "INC_4", title: "Above 3,00,000" },
+        ],
+        "Income Range"
+      );
       return;
     }
 
     if (st.step === "ASK_INCOME") {
-      if (!text) return;
-      temp.income_annual = text;
+      let income = "";
+      if (interactiveId === "INC_1") income = "Up to 50,000";
+      else if (interactiveId === "INC_2") income = "50,000 to 1,00,000";
+      else if (interactiveId === "INC_3") income = "1,00,000 to 3,00,000";
+      else if (interactiveId === "INC_4") income = "Above 3,00,000";
+      else income = rawInput;
+
+      if (!income) {
+        await sendText(from, "Please select income range.");
+        await sendList(
+          from,
+          "Select Monthly Income\nमासिक आय चुनें",
+          "Select",
+          [
+            { id: "INC_1", title: "Up to 50,000" },
+            { id: "INC_2", title: "50,000 to 1,00,000" },
+            { id: "INC_3", title: "1,00,000 to 3,00,000" },
+            { id: "INC_4", title: "Above 3,00,000" },
+          ],
+          "Income Range"
+        );
+        return;
+      }
+
+      temp.income_annual = income; // same column, range text stored
       await setState(from, "ASK_PHOTO", temp);
       await sendText(from, getPromptByStep("ASK_PHOTO", temp));
       return;
@@ -1585,7 +1869,7 @@ If interested: INTEREST ${target.profile_id}`;
       }
 
       if (!permanentLink) {
-        await sendText(from, "Photo upload failed. Please send photo again after some time.");
+        await sendText(from, "Photo upload failed. Please send photo again later.");
         return;
       }
 
@@ -1595,10 +1879,18 @@ If interested: INTEREST ${target.profile_id}`;
       await notifyAdminNewProfile(profileId, from, temp);
 
       await setState(from, "", {});
-
       await sendText(
         from,
-        `✅ Registration completed!\nYour Profile ID: *${profileId}*\n\n💍 *${BRAND_NAME}*\n${BRAND_TAGLINE}\n\nStatus: *PENDING approval*.\nYou will get message after approval.\n\nType *MYPROFILES* to view your profiles.`
+        `✅ Registration completed!
+Your Profile ID: *${profileId}*
+
+💍 *${BRAND_NAME}*
+${BRAND_TAGLINE}
+
+Status: *PENDING approval*
+You will receive a message after approval.
+
+Type *MYPROFILES* to view your profiles.`
       );
       return;
     }
