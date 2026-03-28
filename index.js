@@ -825,28 +825,21 @@ async function notifyAdminNewProfile(profileId, phone, temp) {
   if (!ADMIN_PHONE) return;
 
   const msg =
-`🆕 New Registration (PENDING)
+`🆕 *New Registration*
 
-Brand: ${BRAND_NAME}
-Tagline: ${BRAND_TAGLINE}
+💍 *${BRAND_NAME}*
 
-Profile ID: ${profileId}
+ID: *${profileId}*
 Phone: ${phone}
+
 Name: ${(temp?.name || "")} ${(temp?.surname || "")}
 Gender: ${temp?.gender || ""}
-Marital Status: ${temp?.marital_status || ""}
-DOB: ${temp?.date_of_birth || ""}
-Height: ${temp?.height || ""}
-Religion: ${temp?.religion || ""}
-Caste: ${temp?.caste || ""}
+Marital: ${temp?.marital_status || ""}
 
-Native Place: ${temp?.native_place || ""}, ${temp?.district || ""}
-Work Location: ${temp?.work_city || ""}, ${temp?.work_district || ""}
+Native: ${temp?.native_place || ""}
+Work: ${temp?.work_city || ""}
 
-Education: ${temp?.education || ""}
-Job Type: ${temp?.job || ""}
-Job Title: ${temp?.job_title || ""}
-Income: ${temp?.income_annual || ""}`;
+👇 Use buttons below to approve or reject`;
 
   await sendText(ADMIN_PHONE, msg);
   await sendButtons(ADMIN_PHONE, `Action for ${profileId}`, [
