@@ -1671,10 +1671,39 @@ ${isOwnProfile ? "यह आपकी अपनी profile है।" : `If inte
     // ===================== ONBOARDING DECISION =====================
     if (st.step === "ONBOARDING_DECISION") {
       if (interactiveId === "PROCEED" || cmd === "JOIN" || cmd === "PROCEED") {
-        await setState(from, "ASK_NAME", {});
-        await sendText(from, getPromptByStep("ASK_NAME"));
-        return;
-      }
+
+  const existing = await findProfilesByPhone(from);
+
+  if (existing.length >= MAX_PROFILES_PER_PHONE) {
+    const lines = existing.map((p) => `• ${p.profile_id} (${p.status || "PENDING"})`).join("\n");
+
+    await sendText(
+      from,
+      `⚠️ You already have ${existing.length} profiles (max ${MAX_PROFILES_PER_PHONE}).
+
+${lines}
+
+Delete one first:`
+    );
+
+    const deleteButtons = existing.slice(0, 2).map((p) => ({
+      id: `DEL_PROFILE_${p.profile_id}`,
+      title: p.profile_id,
+    }));
+
+    await sendButtons(
+      from,
+      "Tap a profile to delete\nजिस profile को delete करना है उसे tap करें",
+      deleteButtons
+    );
+
+    return;
+  }
+
+  await setState(from, "ASK_NAME", {});
+  await sendText(from, getPromptByStep("ASK_NAME"));
+  return;
+}
 
       if (interactiveId === "STOP" || cmd === "STOP") {
         await setState(from, "", {});
