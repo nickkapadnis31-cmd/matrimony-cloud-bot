@@ -1106,8 +1106,18 @@ app.post("/webhook", async (req, res) => {
 
     const st = await getState(from);
     const temp = safeJsonParse(st.temp_data || "{}", {});
-    const rawInput = text || interactiveId || "";
-    const { cmd, args } = parseCommand(rawInput);
+    let effectiveInput = text || interactiveId || "";
+
+if (interactiveId.startsWith("ACCEPT_")) {
+  effectiveInput = `ACCEPT ${interactiveId.replace("ACCEPT_", "")}`;
+} else if (interactiveId.startsWith("REJECT_")) {
+  effectiveInput = `REJECT ${interactiveId.replace("REJECT_", "")}`;
+} else if (interactiveId.startsWith("DETAILS_")) {
+  effectiveInput = `DETAILS ${interactiveId.replace("DETAILS_", "")}`;
+}
+
+const rawInput = effectiveInput;
+const { cmd, args } = parseCommand(rawInput);
 
     // ===================== GLOBAL BUTTON / SHORTCUT ACTIONS =====================
     if (interactiveId.startsWith("DEL_PROFILE_") || interactiveId.startsWith("SELF_DELETE_")) {
@@ -1557,10 +1567,23 @@ ${isOwnProfile ? "यह आपकी अपनी profile है।" : `If inte
           viewer_phone: from,
         });
 
-        await sendText(
-          target.phone,
-          `💌 *${BRAND_NAME}*\n\nSomeone showed interest in you.\nकिसी ने आपके profile में interest दिखाया है।\n\nInterested Profile ID: *${active.profile_id}*\n\nReply:\nACCEPT ${active.profile_id}\nREJECT ${active.profile_id}`
-        );
+        await sendButtons(
+  target.phone,
+  `💌 *${BRAND_NAME}*
+
+Someone showed interest in you.
+किसी ने आपके profile में interest दिखाया है।
+
+Interested Profile ID: *${active.profile_id}*
+
+Choose an option
+कृपया एक विकल्प चुनें`,
+  [
+    { id: `ACCEPT_${active.profile_id}`, title: "ACCEPT" },
+    { id: `REJECT_${active.profile_id}`, title: "REJECT" },
+    { id: `DETAILS_${active.profile_id}`, title: "DETAILS" },
+  ]
+);
 
         await sendText(from, `✅ Interest sent to ${target.profile_id}.\nInterest भेज दिया गया है।`);
         if (temp.search && Array.isArray(temp.search.results) && temp.search.results.length) {
