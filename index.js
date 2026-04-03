@@ -524,10 +524,6 @@ ${numerologyInsight(reading.numerology)}
 
 ${rashiInsight(reading.rashi)}
 
-👉 आपके लिए सही दिशा और संतुलन बहुत जरूरी है
-
-✨ सही मार्गदर्शन से आपकी life में positivity आ सकती है
-
 अगर आपको कोई बात सता रही है
 या किसी बात की परेशानी है,
 तो आगे बढ़ें 👇
@@ -614,7 +610,15 @@ async function showShivProductDetail(to, productKey, temp) {
   }
   await sendButtons(
     to,
-    `*${product.title}*\n\nयह आपकी DOB, personal details और चुनी हुई समस्या के आधार पर specially तैयार किया जाएगा।\n\nकई लोगों को regular use के साथ कुछ ही दिनों में results feel हुए हैं।\n\n💰 Price: ₹${product.price}`,
+    `*${product.title}*\n\nयह आपकी DOB, personal details और चुनी हुई समस्या के आधार पर specially तैयार किया जाएगा।
+
+👉 उपयोग कैसे करें:
+इसे रोज अपने पास रखें, पहनें (bracelet/kada) या निर्धारित स्थान पर रखें (जैसे घर/पर्स/कमरे में)
+
+👉 कहाँ रखें:
+ऐसी जगह रखें जहाँ आपकी daily presence हो
+
+✨ कई लोगों को regular use के साथ कुछ ही दिनों में positive results महसूस हुए हैं\n\n💰 Price: ₹${product.price}`,
     [
       { id: "SHIV_BUY_NOW", title: "Buy Now" },
       { id: "SHIV_START_AGAIN", title: "Start Again" },
@@ -2440,25 +2444,6 @@ Delete one first:`
         return;
       }
       temp.delivery_details = rawInput;
-      await setState(from, "SHIV_PAYMENT", temp);
-      await sendText(
-        from,
-        `👉 Order confirm करने के लिए
-नीचे दिए गए QR पर payment करें...${SHIV_UPI_ID ? `
-UPI: ${SHIV_UPI_ID}` : ""}`
-      );
-      if (SHIV_QR_IMAGE_URL) {
-        try {
-          await sendImageByLink(from, SHIV_QR_IMAGE_URL, "Scan & Pay");
-        } catch (e) {
-          console.error("Shiv QR send failed:", e?.response?.data || e.message);
-        }
-      }
-      await sendButtons(from, "Payment complete होने के बाद नीचे क्लिक करें", [
-        { id: "SHIV_PAYMENT_DONE", title: "Payment Done" },
-        { id: "SHIV_START_AGAIN", title: "Start Again" },
-      ]);
-      return;
     }
 
     if (st.step === "SHIV_PAYMENT") {
