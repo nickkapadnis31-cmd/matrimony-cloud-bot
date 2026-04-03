@@ -508,7 +508,30 @@ async function getShivReading(temp) {
 }
 
 function buildShivResultMessage(temp, reading) {
-  return `🔮 *आपकी Basic Reading*\n\n- Numerology Number: *${reading.numerology || "-"}*\n- Lucky Number: *${(reading.luckyNumbers || []).join(", ")}*\n- Rashi: *${reading.rashi || "-"}*${reading.nakshatra ? `\n- Nakshatra: *${reading.nakshatra}*` : ""}\n\n${numerologyInsight(reading.numerology)}\n\n${rashiInsight(reading.rashi)}\n\nअगर यह बातें आपकी life से जुड़ी हुई लगती हैं, तो आगे आपकी problem के अनुसार solution दिया जा सकता है।`;
+  const colours = luckyColoursForNumerology(reading.numerology || 1).join(", ");
+
+  return `🔱 शिव समाधान 🔱
+
+🔮 *आपकी Basic Reading*
+
+• Numerology Number: *${reading.numerology || "-"}*
+• Lucky Number: *${(reading.luckyNumbers || []).join(", ")}*
+• Rashi: *${reading.rashi || "-"}*
+• Lucky Colour: *${colours}*
+
+${numerologyInsight(reading.numerology)}
+
+${rashiInsight(reading.rashi)}
+
+👉 आपके लिए सही दिशा और संतुलन बहुत जरूरी है
+
+✨ सही मार्गदर्शन से आपकी life में positivity आ सकती है
+
+अगर आपको कोई बात सता रही है
+या किसी बात की परेशानी है,
+तो आगे बढ़ें 👇
+
+🌸 आपका भविष्य मंगलमय हो 🌸`;
 }
 
 async function showMainServiceMenu(to) {
@@ -525,7 +548,17 @@ async function showMainServiceMenu(to) {
 async function showShivIntro(to) {
   await sendButtons(
     to,
-    "क्या आप बार-बार परेशान हो रहे हैं?\n\nकई बार यह नकारात्मक ऊर्जा या life imbalance की वजह से होता है।\n\nचिंता मत करें… समाधान है 🙏",
+    `🔱 शिव समाधान 🔱
+
+सही मार्गदर्शन और उपाय से
+आपकी सभी परेशानियों का समाधान संभव है ✨
+
+👉 आपकी DOB और personal details के आधार पर
+आपके लिए सही उपाय बताया जाएगा
+
+⬇️ अधिक जानकारी के लिए आगे बढ़ें
+
+🌸 आपका भविष्य मंगलमय हो 🌸`,
     [
       { id: "SHIV_PROCEED", title: "Proceed" },
       { id: "SHIV_START_AGAIN", title: "Start Again" },
