@@ -1790,7 +1790,7 @@ const { cmd, args } = parseCommand(rawInput);
     // ===================== GLOBAL CANCEL =====================
     if (cmd === "STOP" || cmd === "CANCEL") {
       await setState(from, "", {});
-      await sendText(from, "✅ Process बंद कर दिया गया है।
+      await sendText(from, " Process बंद कर दिया गया है।
 कृपया अपनी सेवा चुनें।");
       await showMainServiceMenu(from);
       return;
