@@ -240,80 +240,133 @@ const SHIV_PRODUCTS = {
 const SHIV_PROBLEMS = {
   MARRIAGE: {
     key: "MARRIAGE",
-    title: "शादी से जुड़ी समस्या",
+    title: "शादी में देरी / समस्या",
     hook: "क्या शादी में देरी हो रही है या सही रिश्ता नहीं मिल रहा?",
-    emotional: "समझ गया 🙏\n\nकई बार शादी में रुकावट, देरी या सही रिश्ता न मिलना repeated blockage की वजह से होता है।\nसही उपाय से धीरे-धीरे सुधार संभव है।",
-    products: ["BHAIRAV_YANTRA", "RUDRAKSHA_BRACELET", "NAZAR_BATTU"],
+    emotional: `समझ गया 🙏
+
+शादी में देरी या बार-बार रुकावट आना कई बार ग्रहों के प्रभाव और energy imbalance से जुड़ा होता है।
+
+👉 सही उपाय से विवाह के योग मजबूत हो सकते हैं
+
+⬇️ समाधान देखें`,
+    products: ["BHAIRAV_YANTRA", "RUDRAKSHA_BRACELET", "KAMDHENU_COW"],
   },
   RELATION_KALAH: {
     key: "RELATION_KALAH",
-    title: "रिश्तों में कलह",
-    hook: "क्या पति-पत्नी झगड़े, दूरी या परिवार में तनाव बढ़ रहा है?",
-    emotional: "समझ गया 🙏\n\nकई बार रिश्तों में कलह, दूरी और घर के अंदर तनाव energy imbalance की वजह से बढ़ता है।\nसही उपाय से positivity और shanti को support मिल सकता है।",
-    products: ["BHAIRAV_YANTRA", "RUDRAKSHA_BRACELET", "KAMDHENU_COW"],
+    title: "रिश्तों में कलह / तनाव",
+    hook: "क्या रिश्तों में बार-बार तनाव, झगड़े या दूरी बढ़ रही है?",
+    emotional: `समझ गया 🙏
+
+रिश्तों में बार-बार झगड़ा, misunderstanding या दूरी negative energy और imbalance का संकेत हो सकता है।
+
+👉 सही उपाय से रिश्तों में शांति और समझ बढ़ सकती है
+
+⬇️ समाधान देखें`,
+    products: ["BHAIRAV_YANTRA", "CRYSTAL_TURTLE", "SURYA_FRAME"],
   },
-  MONEY: {
-    key: "MONEY",
-    title: "पैसों की समस्या",
-    hook: "क्या पैसा आता है लेकिन टिकता नहीं, या आर्थिक रुकावट बनी रहती है?",
-    emotional: "समझ गया 🙏\n\nकई बार आर्थिक रुकावट, पैसा न टिकना या व्यापार में नुकसान financial blockage की वजह से बार-बार होता है।\nसही उपाय से flow को support मिल सकता है।",
-    products: ["LAXMI_KUBER_COIN", "LAXMI_KUBER_YANTRA", "CRYSTAL_TURTLE"],
+  JOB: {
+    key: "JOB",
+    title: "नौकरी / करियर समस्या",
+    hook: "क्या नौकरी में रुकावट, growth delay या confidence की कमी महसूस हो रही है?",
+    emotional: `समझ गया 🙏
+
+नौकरी में रुकावट, growth न होना या बार-बार failure energy blockage और ग्रह प्रभाव से जुड़ा हो सकता है।
+
+👉 सही उपाय से career में प्रगति संभव है
+
+⬇️ समाधान देखें`,
+    products: ["BHAIRAV_YANTRA", "RUDRAKSHA_BRACELET", "SURYA_FRAME"],
   },
   LOAN: {
     key: "LOAN",
     title: "लोन नहीं भर पा रहे",
     hook: "क्या EMI का दबाव बढ़ रहा है और कर्ज कम नहीं हो रहा?",
-    emotional: "समझ गया 🙏\n\nकई बार loan pressure, EMI burden और पैसा आते ही खत्म हो जाना heavy blockage का संकेत होता है।\nसही उपाय से राहत को support मिल सकता है।",
-    products: ["LAXMI_KUBER_COIN", "LAXMI_KUBER_YANTRA", "CRYSTAL_TURTLE"],
+    emotional: `समझ गया 🙏
+
+लोन का बढ़ता बोझ और repayment में कठिनाई financial imbalance और blockage का संकेत हो सकता है।
+
+👉 सही उपाय से स्थिति में सुधार आ सकता है
+
+⬇️ समाधान देखें`,
+    products: ["LAXMI_KUBER_YANTRA", "RUDRAKSHA_BRACELET", "SURYA_FRAME"],
   },
   RECOVERY: {
     key: "RECOVERY",
-    title: "दिए गए पैसे वापस नहीं आ रहे",
-    hook: "क्या उधार दिया हुआ पैसा अटका हुआ है और वापस नहीं मिल रहा?",
-    emotional: "समझ गया 🙏\n\nकई बार दिया गया पैसा अटक जाना और बार-बार follow-up के बाद भी वापस न मिलना stuck energy का संकेत होता है।\nसही उपाय से recovery को support मिल सकता है।",
-    products: ["LAXMI_KUBER_COIN", "LAXMI_KUBER_YANTRA", "RUDRAKSHA_BRACELET"],
+    title: "दिया पैसा वापस नहीं मिल रहा",
+    hook: "क्या दिया हुआ पैसा अटका हुआ है और वापस नहीं मिल रहा?",
+    emotional: `समझ गया 🙏
+
+दिया हुआ पैसा वापस न मिलना कई बार नकारात्मक ऊर्जा और परिस्थिति imbalance से जुड़ा होता है।
+
+👉 सही उपाय से पैसा वापस मिलने के योग बन सकते हैं
+
+⬇️ समाधान देखें`,
+    products: ["BHAIRAV_YANTRA", "LAXMI_KUBER_COIN", "RUDRAKSHA_BRACELET"],
   },
-  NEGATIVE: {
-    key: "NEGATIVE",
-    title: "नजर / नकारात्मक ऊर्जा",
-    hook: "क्या बार-बार काम बनते-बनते बिगड़ जाते हैं या negativity महसूस होती है?",
-    emotional: "समझ गया 🙏\n\nकई बार नजर, negativity या repeated रुकावटें बाहरी नकारात्मक प्रभाव की वजह से बढ़ती हैं।\nसही उपाय से protection को support मिल सकता है।",
-    products: ["BHAIRAV_YANTRA", "NAZAR_BATTU", "SHIV_KADA"],
+  CHILDLESS: {
+    key: "CHILDLESS",
+    title: "बच्चे नहीं हो रहे",
+    hook: "क्या संतान प्राप्ति में देरी हो रही है?",
+    emotional: `समझ गया 🙏
+
+संतान प्राप्ति में देरी कई बार energy imbalance और ग्रह प्रभाव से जुड़ी होती है।
+
+👉 सही उपाय से संतान सुख के योग मजबूत हो सकते हैं
+
+⬇️ समाधान देखें`,
+    products: ["BHAIRAV_YANTRA", "RUDRAKSHA_BRACELET", "KAMDHENU_COW"],
   },
   GRAH_ASHANTI: {
     key: "GRAH_ASHANTI",
     title: "गृह अशांति",
-    hook: "क्या घर में झगड़े, क्लेश या शांति की कमी बनी रहती है?",
-    emotional: "समझ गया 🙏\n\nकई बार गृह अशांति, बार-बार झगड़े और घर का भारी माहौल negativity और imbalance की वजह से बढ़ता है।\nसही उपाय से घर की positivity को support मिल सकता है।",
-    products: ["KAMDHENU_COW", "SURYA_FRAME", "NAZAR_BATTU"],
+    hook: "क्या घर में बार-बार तनाव, झगड़े या बेचैनी बनी रहती है?",
+    emotional: `समझ गया 🙏
+
+घर में बार-बार तनाव, झगड़े या बेचैनी negative energy का संकेत हो सकता है।
+
+👉 सही उपाय से घर में शांति और सुख बढ़ सकता है
+
+⬇️ समाधान देखें`,
+    products: ["BHAIRAV_YANTRA", "RUDRAKSHA_BRACELET", "KAMDHENU_COW"],
   },
   MAN_ASHANTI: {
     key: "MAN_ASHANTI",
-    title: "मन अशांति",
-    hook: "क्या मन बेचैन रहता है, डर या तनाव बार-बार बढ़ता है?",
-    emotional: "समझ गया 🙏\n\nकई बार मन अशांति, stress, डर और बेचैनी internal imbalance की वजह से बढ़ती है।\nसही उपाय से shanti और stability को support मिल सकता है।",
-    products: ["SHIV_KADA", "RUDRAKSHA_BRACELET", "SURYA_FRAME"],
+    title: "मन अशांति / तनाव",
+    hook: "क्या बार-बार चिंता, डर या stress बढ़ रहा है?",
+    emotional: `समझ गया 🙏
+
+बार-बार चिंता, stress या मन का अशांत रहना energy imbalance का संकेत हो सकता है।
+
+👉 सही उपाय से मन शांत और स्थिर हो सकता है
+
+⬇️ समाधान देखें`,
+    products: ["BHAIRAV_YANTRA", "RUDRAKSHA_BRACELET", "SURYA_FRAME"],
   },
-  CHILD: {
-    key: "CHILD",
-    title: "बच्चों की समस्या",
-    hook: "क्या बच्चे बहुत गुस्सा करते हैं, जिद्दी हैं या पढ़ाई में ध्यान नहीं लग रहा?",
-    emotional: "समझ गया 🙏\n\nकई बार बच्चों का aggressive behavior, गुस्सा या पढ़ाई में ध्यान न लगना घर की energy और routine imbalance से जुड़ा होता है।\nसही उपाय से support मिल सकता है।",
-    products: ["RUDRAKSHA_BRACELET", "SURYA_FRAME", "KAMDHENU_COW"],
+  SMALL_CHILD: {
+    key: "SMALL_CHILD",
+    title: "छोटे बच्चों की परेशानियां",
+    hook: "क्या छोटे बच्चों में गुस्सा, जिद या बार-बार परेशानी हो रही है?",
+    emotional: `समझ गया 🙏
+
+कई बार छोटे बच्चों का गुस्सा, जिद या बार-बार बीमार होना घर की energy imbalance और नजर के प्रभाव से जुड़ा होता है।
+
+👉 सही उपाय से बच्चे शांत और positive हो सकते हैं
+
+⬇️ समाधान देखें`,
+    products: ["BHAIRAV_YANTRA", "NAZAR_BATTU", "RUDRAKSHA_BRACELET"],
   },
-  TEEN: {
-    key: "TEEN",
-    title: "Teenage kids behaviour problem",
-    hook: "क्या teenage kids सुनते नहीं, attitude या गलत आदतें बढ़ रही हैं?",
-    emotional: "समझ गया 🙏\n\nकई बार teenage behavior, attitude, गुस्सा और घर से disconnect energy imbalance और pressure की वजह से बढ़ सकता है।\nसही उपाय से support मिल सकता है।",
-    products: ["RUDRAKSHA_BRACELET", "SURYA_FRAME", "KAMDHENU_COW"],
-  },
-  CAREER: {
-    key: "CAREER",
-    title: "करियर / सफलता",
-    hook: "क्या job नहीं लग रही, growth रुक गई है या confidence कम हो रहा है?",
-    emotional: "समझ गया 🙏\n\nकई बार career blockage, success delay और low confidence repeated रुकावट की वजह से बढ़ते हैं।\nसही उपाय से progress को support मिल सकता है।",
-    products: ["SURYA_FRAME", "RUDRAKSHA_BRACELET", "CRYSTAL_TURTLE"],
+  BIG_CHILD: {
+    key: "BIG_CHILD",
+    title: "बड़े बच्चों की परेशानियां",
+    hook: "क्या बड़े बच्चों का behavior, गुस्सा या attitude बढ़ रहा है?",
+    emotional: `समझ गया 🙏
+
+Teenage या बड़े बच्चों का behavior change होना, गुस्सा, बात न मानना या ध्यान न लगना mental और energy imbalance से जुड़ा हो सकता है।
+
+👉 सही दिशा और उपाय से सुधार संभव है
+
+⬇️ समाधान देखें`,
+    products: ["BHAIRAV_YANTRA", "NAZAR_BATTU", "RUDRAKSHA_BRACELET"],
   },
 };
 
@@ -342,6 +395,21 @@ function luckyNumbersForNumerology(n) {
     6: [3, 6, 9], 7: [2, 7, 9], 8: [1, 5, 8], 9: [3, 6, 9],
   };
   return map[n] || [n || 1];
+}
+
+function luckyColoursForNumerology(n) {
+  const map = {
+    1: ["Gold", "Orange"],
+    2: ["White", "Silver"],
+    3: ["Yellow", "Orange"],
+    4: ["Blue", "Grey"],
+    5: ["Green", "Light Blue"],
+    6: ["Pink", "Cream"],
+    7: ["White", "Light Yellow"],
+    8: ["Navy Blue", "Brown"],
+    9: ["Red", "Maroon"],
+  };
+  return map[n] || ["Gold", "Yellow"];
 }
 
 function approxRashiFromDob(dob) {
@@ -444,10 +512,14 @@ function buildShivResultMessage(temp, reading) {
 }
 
 async function showMainServiceMenu(to) {
-  await sendButtons(to, "आप किस सेवा में interested हैं?", [
-    { id: "VIVAHO_HOME", title: "Vivaho" },
-    { id: "SHIV_HOME", title: "Shiv Samadhan" },
-  ]);
+  await sendButtons(
+    to,
+    "आप किस सेवा में interested हैं?\n\n💍 *Vivaho Matrimony*\n👉 अपना जीवनसाथी खोजें\n\n🔱 *Shiv Samadhan*\n👉 ज्योतिष / आध्यात्मिक समाधान पाएं",
+    [
+      { id: "VIVAHO_HOME", title: "Vivaho" },
+      { id: "SHIV_HOME", title: "Shiv Samadhan" },
+    ]
+  );
 }
 
 async function showShivIntro(to) {
@@ -463,17 +535,17 @@ async function showShivIntro(to) {
 
 async function showShivProblemList(to) {
   await sendList(to, "अपनी समस्या चुनें", "Select", [
-    { id: "SHIV_PROB_MARRIAGE", title: "शादी समस्या" },
-    { id: "SHIV_PROB_RELATION_KALAH", title: "रिश्तों में कलह" },
+    { id: "SHIV_PROB_MARRIAGE", title: "शादी में देरी" },
+    { id: "SHIV_PROB_RELATION_KALAH", title: "रिश्तों में तनाव" },
+    { id: "SHIV_PROB_JOB", title: "नौकरी / करियर" },
     { id: "SHIV_PROB_LOAN", title: "लोन समस्या" },
     { id: "SHIV_PROB_RECOVERY", title: "पैसा वापस नहीं" },
-    { id: "SHIV_PROB_NEGATIVE", title: "नजर / negativity" },
+    { id: "SHIV_PROB_CHILDLESS", title: "बच्चे नहीं हो रहे" },
     { id: "SHIV_PROB_GRAH_ASHANTI", title: "गृह अशांति" },
-    { id: "SHIV_PROB_MAN_ASHANTI", title: "मन अशांति" },
-    { id: "SHIV_PROB_CHILD", title: "बच्चों की समस्या" },
-    { id: "SHIV_PROB_TEEN", title: "Teenage problem" },
-    { id: "SHIV_PROB_CAREER", title: "करियर / सफलता" },
-  ], "Problems", "Shiv Samadhan");
+    { id: "SHIV_PROB_MAN_ASHANTI", title: "मन अशांति / तनाव" },
+    { id: "SHIV_PROB_SMALL_CHILD", title: "छोटे बच्चों की" },
+    { id: "SHIV_PROB_BIG_CHILD", title: "बड़े बच्चों की" },
+  ], "Select", "Shiv Samadhan");
 }
 
 async function showShivProducts(to, temp) {
@@ -2194,14 +2266,7 @@ Delete one first:`
     // ===================== NO ACTIVE STEP =====================
     if (!st.step) {
       if (rawInput) {
-        if (isGreetingInput(rawInput)) {
-          await showMainServiceMenu(from);
-        } else {
-          await sendText(from, WELCOME_MSG);
-          await sendText(from, COMMANDS_MSG);
-          await setState(from, "ONBOARDING_DECISION", {});
-          await sendProceedStopButtons(from);
-        }
+        await showMainServiceMenu(from);
       }
       return;
     }
@@ -2253,16 +2318,23 @@ Delete one first:`
         temp.birth_time = rawInput;
       }
       await setState(from, "SHIV_ASK_BIRTH_PLACE", temp);
-      await sendText(from, "अपना Birth Place भेजें");
+      await sendButtons(from, `अपना Birth Place भेजें
+अगर पता न हो तो Skip करें`, [
+        { id: "SHIV_SKIP_PLACE", title: "SKIP" },
+        { id: "SHIV_START_AGAIN", title: "Start Again" },
+      ]);
       return;
     }
 
     if (st.step === "SHIV_ASK_BIRTH_PLACE") {
-      if (!rawInput || rawInput.length < 2) {
-        await sendText(from, "कृपया सही Birth Place भेजें।");
+      if (interactiveId === "SHIV_SKIP_PLACE" || cmd === "SKIP") {
+        temp.birth_place = "SKIP";
+      } else if (!rawInput || rawInput.length < 2) {
+        await sendText(from, "कृपया सही Birth Place भेजें या Skip करें।");
         return;
+      } else {
+        temp.birth_place = rawInput;
       }
-      temp.birth_place = rawInput;
       const reading = await getShivReading(temp);
       temp.reading = reading;
       await setState(from, "SHIV_RESULT", temp);
@@ -2321,7 +2393,11 @@ Delete one first:`
       temp.delivery_details = rawInput;
       await setState(from, "SHIV_PAYMENT", temp);
       if (SHIV_QR_IMAGE_URL) {
-        await sendImageByLink(from, SHIV_QR_IMAGE_URL, "Order confirm करने के लिए payment करें");
+        try {
+          await sendImageByLink(from, SHIV_QR_IMAGE_URL, "Order confirm करने के लिए payment करें");
+        } catch (e) {
+          console.error("Shiv QR send failed:", e?.response?.data || e.message);
+        }
       }
       await sendButtons(from, `Order confirm करने के लिए नीचे दिए गए QR पर payment करें${SHIV_UPI_ID ? `\nUPI: ${SHIV_UPI_ID}` : ""}`, [
         { id: "SHIV_PAYMENT_DONE", title: "Payment Done" },
