@@ -2438,13 +2438,41 @@ Delete one first:`
       return;
     }
 
-    if (st.step === "SHIV_ADDRESS") {
-      if (!rawInput || rawInput.length < 10) {
-        await sendText(from, "कृपया पूरा delivery address भेजें।");
-        return;
-      }
-      temp.delivery_details = rawInput;
+  if (st.step === "SHIV_ADDRESS") {
+  if (!rawInput || rawInput.length < 10) {
+    await sendText(from, "कृपया पूरा delivery address भेजें।");
+    return;
+  }
+
+  temp.delivery_details = rawInput;
+  await setState(from, "SHIV_PAYMENT", temp);
+
+  if (SHIV_QR_IMAGE_URL) {
+    try {
+      await sendImageByLink(
+        from,
+        SHIV_QR_IMAGE_URL,
+        `👉 Order confirm करने के लिए नीचे दिए गए QR पर payment करें...
+UPI: ${SHIV_UPI_ID || ""}`
+      );
+    } catch (e) {
+      console.error("Shiv QR send failed:", e?.response?.data || e.message);
     }
+  }
+
+  await new Promise(r => setTimeout(r, 800));
+
+  await sendButtons(
+    from,
+    "Payment complete होने के बाद नीचे क्लिक करें",
+    [
+      { id: "SHIV_PAYMENT_DONE", title: "Payment Done" },
+      { id: "SHIV_START_AGAIN", title: "Start Again" },
+    ]
+  );
+
+  return;
+}
 
     if (st.step === "SHIV_PAYMENT") {
       
