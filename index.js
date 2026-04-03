@@ -198,7 +198,7 @@ const PROFILE_TAB = "profiles";
 const STATE_TAB = "state";
 const REQUESTS_TAB = "requests";
 
-const MAX_PROFILES_PER_PHONE = 2;
+const MAX_PROFILES_PER_PHONE = 1;
 const MIN_AGE = 18;
 const MAX_DETAILS_PER_MONTH = 5;
 const MAX_INTEREST_PER_MONTH = 5;
@@ -516,7 +516,8 @@ function buildShivResultMessage(temp, reading) {
 
 • Numerology Number: *${reading.numerology || "-"}*
 • Lucky Number: *${(reading.luckyNumbers || []).join(", ")}*
-• Rashi: *${reading.rashi || "-"}*
+• Rashi: *${reading.rashi || "-"}*${reading.nakshatra ? `
+• Nakshatra: *${reading.nakshatra}*` : ""}
 • Lucky Colour: *${colours}*
 
 ${numerologyInsight(reading.numerology)}
@@ -594,7 +595,7 @@ async function showShivProducts(to, temp) {
     to,
     "अपना product चुनें",
     "Products",
-    products.map((p) => ({ id: `SHIV_PRODUCT_${p.key}`, title: trimTo(p.title, 24)` })),
+    products.map((p) => ({ id: `SHIV_PRODUCT_${p.key}`, title: trimTo(p.title, 24) })),
     "Available Products"
   );
   await sendButtons(to, "आगे क्या करना है?", [{ id: "SHIV_START_AGAIN", title: "Start Again" }]);
@@ -613,15 +614,7 @@ async function showShivProductDetail(to, productKey, temp) {
   }
   await sendButtons(
     to,
-    `*${product.title}*\n\nयह आपकी DOB, personal details और चुनी हुई समस्या के आधार पर specially तैयार किया जाएगा।
-
-👉 उपयोग कैसे करें:
-इसे रोज अपने पास रखें, पहनें (bracelet/kada) या निर्धारित स्थान पर रखें (जैसे घर/पर्स/कमरे में)
-
-👉 कहाँ रखें:
-ऐसी जगह रखें जहाँ आपकी daily presence हो
-
-✨ कई लोगों को regular use के साथ कुछ ही दिनों में positive results महसूस हुए हैं।\n\n💰 Price: ₹${product.price}`,
+    `*${product.title}*\n\nयह आपकी DOB, personal details और चुनी हुई समस्या के आधार पर specially तैयार किया जाएगा।\n\nकई लोगों को regular use के साथ कुछ ही दिनों में results feel हुए हैं।\n\n💰 Price: ₹${product.price}`,
     [
       { id: "SHIV_BUY_NOW", title: "Buy Now" },
       { id: "SHIV_START_AGAIN", title: "Start Again" },
@@ -1640,7 +1633,24 @@ const { cmd, args } = parseCommand(rawInput);
       const userTemp = safeJsonParse(userState.temp_data || "{}", {});
       if (interactiveId.startsWith("SHIV_ADMIN_CONFIRM_")) {
         await setState(userPhone, "", {});
-        await sendText(userPhone, `✅ Order Confirmed\n\n👉 आपका order successfully receive हो गया है\n\n📦 Product: ${userTemp.selectedProductTitle || ""}\n💰 Price: ₹${userTemp.selectedProductPrice || ""}\n\n👉 आपकी वस्तु order and delivery details के अनुसार, आपकी DOB, personal details और problem के अनुसार तैयार की जाएगी\n\n🚚 Delivery: 7–8 days`);
+        await sendButtons(
+          userPhone,
+          `✅ Order Confirmed
+
+👉 आपका order successfully receive हो गया है
+
+📦 Product: ${userTemp.selectedProductTitle || ""}
+💰 Price: ₹${userTemp.selectedProductPrice || ""}
+
+👉 आपकी वस्तु आपकी DOB, personal details और problem के अनुसार तैयार की जाएगी
+
+🚚 Delivery: 7–8 days
+
+🌸 आपका भविष्य मंगलमय हो 🌸`,
+          [
+            { id: "SHIV_START_AGAIN", title: "Start Again" }
+          ]
+        );
         await sendText(from, `✅ Confirmed order for ${userPhone}`);
       } else {
         await setState(userPhone, "SHIV_PAYMENT", userTemp);
@@ -1780,8 +1790,9 @@ const { cmd, args } = parseCommand(rawInput);
     // ===================== GLOBAL CANCEL =====================
     if (cmd === "STOP" || cmd === "CANCEL") {
       await setState(from, "", {});
-      await sendText(from, `✅ Cancelled.\nProcess बंद कर दिया गया है।\n\n${WELCOME_MSG}`);
-      await sendJoinStopButtons(from);
+      await sendText(from, "✅ Process बंद कर दिया गया है।
+कृपया अपनी सेवा चुनें।");
+      await showMainServiceMenu(from);
       return;
     }
 
@@ -2261,7 +2272,7 @@ Delete one first:`
 
       if (interactiveId === "STOP" || cmd === "STOP") {
         await setState(from, "", {});
-        await sendText(from, THANK_YOU_MARKETING_MSG);
+        await showMainServiceMenu(from);
         return;
       }
 
@@ -2431,35 +2442,46 @@ Delete one first:`
       }
       temp.delivery_details = rawInput;
       await setState(from, "SHIV_PAYMENT", temp);
+      await sendText(
+        from,
+        `👉 Order confirm करने के लिए
+नीचे दिए गए QR पर payment करें...${SHIV_UPI_ID ? `
+UPI: ${SHIV_UPI_ID}` : ""}`
+      );
       if (SHIV_QR_IMAGE_URL) {
         try {
-          await sendImageByLink(from, SHIV_QR_IMAGE_URL, "Order confirm करने के लिए payment करें");
+          await sendImageByLink(from, SHIV_QR_IMAGE_URL, "Scan & Pay");
         } catch (e) {
           console.error("Shiv QR send failed:", e?.response?.data || e.message);
         }
       }
-      // Step 1: Instruction
-await sendText(
-  from,
-  `👉 Order confirm करने के लिए
-नीचे दिए गए QR पर payment करें...
-UPI: ${SHIV_UPI_ID || ""}`
-);
+      await sendButtons(from, "Payment complete होने के बाद नीचे क्लिक करें", [
+        { id: "SHIV_PAYMENT_DONE", title: "Payment Done" },
+        { id: "SHIV_START_AGAIN", title: "Start Again" },
+      ]);
+      return;
+    }
 
-// Step 2: QR Image
-if (SHIV_QR_IMAGE_URL) {
-  await sendImageByLink(from, SHIV_QR_IMAGE_URL, "Scan & Pay");
-}
-
-// Step 3: Buttons AFTER QR
-await sendButtons(
-  from,
-  `Payment complete होने के बाद नीचे क्लिक करें`,
-  [
-    { id: "SHIV_PAYMENT_DONE", title: "Payment Done" },
-    { id: "SHIV_START_AGAIN", title: "Start Again" },
-  ]
-);
+    if (st.step === "SHIV_PAYMENT") {
+      await sendText(
+        from,
+        `👉 Order confirm करने के लिए
+नीचे दिए गए QR पर payment करें...${SHIV_UPI_ID ? `
+UPI: ${SHIV_UPI_ID}` : ""}`
+      );
+      if (SHIV_QR_IMAGE_URL) {
+        try {
+          await sendImageByLink(from, SHIV_QR_IMAGE_URL, "Scan & Pay");
+        } catch (e) {
+          console.error("Shiv QR send failed:", e?.response?.data || e.message);
+        }
+      }
+      await sendButtons(from, "Payment complete होने के बाद नीचे क्लिक करें", [
+        { id: "SHIV_PAYMENT_DONE", title: "Payment Done" },
+        { id: "SHIV_START_AGAIN", title: "Start Again" },
+      ]);
+      return;
+    }
 
     if (st.step === "SHIV_PENDING_ADMIN") {
       await sendText(from, "Payment verification pending. कृपया admin confirmation का wait करें।");
