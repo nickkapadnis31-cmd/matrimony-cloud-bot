@@ -465,7 +465,6 @@ async function showShivProblemList(to) {
   await sendList(to, "अपनी समस्या चुनें", "Select", [
     { id: "SHIV_PROB_MARRIAGE", title: "शादी समस्या" },
     { id: "SHIV_PROB_RELATION_KALAH", title: "रिश्तों में कलह" },
-    { id: "SHIV_PROB_MONEY", title: "पैसों की समस्या" },
     { id: "SHIV_PROB_LOAN", title: "लोन समस्या" },
     { id: "SHIV_PROB_RECOVERY", title: "पैसा वापस नहीं" },
     { id: "SHIV_PROB_NEGATIVE", title: "नजर / negativity" },
