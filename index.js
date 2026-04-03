@@ -548,13 +548,11 @@ async function showMainServiceMenu(to) {
 async function showShivIntro(to) {
   await sendButtons(
     to,
-    `🔱 शिव समाधान 🔱
+    `🔱 शिव समाधान में आपका स्वागत है 🙏
 
-सही मार्गदर्शन और उपाय से
-आपकी सभी परेशानियों का समाधान संभव है ✨
+सही मार्गदर्शन और उपाय से आपका भविष्य बेहतर बन सकता है ✨
 
-👉 आपकी DOB और personal details के आधार पर
-आपके लिए सही उपाय बताया जाएगा
+जीवन की समस्याओं का समाधान सही दिशा और सकारात्मक ऊर्जा से संभव है।
 
 ⬇️ अधिक जानकारी के लिए आगे बढ़ें
 
@@ -596,7 +594,7 @@ async function showShivProducts(to, temp) {
     to,
     "अपना product चुनें",
     "Products",
-    products.map((p) => ({ id: `SHIV_PRODUCT_${p.key}`, title: trimTo(p.title, 24), description: `₹${p.price}` })),
+    products.map((p) => ({ id: `SHIV_PRODUCT_${p.key}`, title: trimTo(p.title, 24)` })),
     "Available Products"
   );
   await sendButtons(to, "आगे क्या करना है?", [{ id: "SHIV_START_AGAIN", title: "Start Again" }]);
@@ -615,7 +613,15 @@ async function showShivProductDetail(to, productKey, temp) {
   }
   await sendButtons(
     to,
-    `*${product.title}*\n\nयह आपकी DOB, personal details और चुनी हुई समस्या के आधार पर specially तैयार किया जाएगा।\n\nकई लोगों को regular use के साथ कुछ ही दिनों में results feel हुए हैं।\n\n💰 Price: ₹${product.price}`,
+    `*${product.title}*\n\nयह आपकी DOB, personal details और चुनी हुई समस्या के आधार पर specially तैयार किया जाएगा।
+
+👉 उपयोग कैसे करें:
+इसे रोज अपने पास रखें, पहनें (bracelet/kada) या निर्धारित स्थान पर रखें (जैसे घर/पर्स/कमरे में)
+
+👉 कहाँ रखें:
+ऐसी जगह रखें जहाँ आपकी daily presence हो
+
+✨ कई लोगों को regular use के साथ कुछ ही दिनों में positive results महसूस हुए हैं।\n\n💰 Price: ₹${product.price}`,
     [
       { id: "SHIV_BUY_NOW", title: "Buy Now" },
       { id: "SHIV_START_AGAIN", title: "Start Again" },
@@ -2432,20 +2438,28 @@ Delete one first:`
           console.error("Shiv QR send failed:", e?.response?.data || e.message);
         }
       }
-      await sendButtons(from, `Order confirm करने के लिए नीचे दिए गए QR पर payment करें${SHIV_UPI_ID ? `\nUPI: ${SHIV_UPI_ID}` : ""}`, [
-        { id: "SHIV_PAYMENT_DONE", title: "Payment Done" },
-        { id: "SHIV_START_AGAIN", title: "Start Again" },
-      ]);
-      return;
-    }
+      // Step 1: Instruction
+await sendText(
+  from,
+  `👉 Order confirm करने के लिए
+नीचे दिए गए QR पर payment करें...
+UPI: ${SHIV_UPI_ID || ""}`
+);
 
-    if (st.step === "SHIV_PAYMENT") {
-      await sendButtons(from, `Order confirm करने के लिए नीचे दिए गए QR पर payment करें${SHIV_UPI_ID ? `\nUPI: ${SHIV_UPI_ID}` : ""}`, [
-        { id: "SHIV_PAYMENT_DONE", title: "Payment Done" },
-        { id: "SHIV_START_AGAIN", title: "Start Again" },
-      ]);
-      return;
-    }
+// Step 2: QR Image
+if (SHIV_QR_IMAGE_URL) {
+  await sendImageByLink(from, SHIV_QR_IMAGE_URL, "Scan & Pay");
+}
+
+// Step 3: Buttons AFTER QR
+await sendButtons(
+  from,
+  `Payment complete होने के बाद नीचे क्लिक करें`,
+  [
+    { id: "SHIV_PAYMENT_DONE", title: "Payment Done" },
+    { id: "SHIV_START_AGAIN", title: "Start Again" },
+  ]
+);
 
     if (st.step === "SHIV_PENDING_ADMIN") {
       await sendText(from, "Payment verification pending. कृपया admin confirmation का wait करें।");
