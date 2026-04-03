@@ -1896,7 +1896,17 @@ const { cmd, args } = parseCommand(rawInput);
         const active = getLatestApprovedProfile(profiles);
         if (!active) {
           await sendText(from, PENDING_MSG);
-          await sendSearchButton(from, "Approval के बाद search शुरू कीजिए।");
+         const latest = profiles[0];
+
+await sendButtons(
+  from,
+  "आपका profile approval के लिए pending है",
+  [
+    { id: "SEARCH", title: "SEARCH" },
+    { id: `DETAILS_${latest.profile_id}`, title: "DETAILS" },
+    { id: `DELETE_${latest.profile_id}`, title: "DELETE" },
+  ]
+);
           return;
         }
 
@@ -2239,30 +2249,31 @@ Choose an option
   const existing = await findProfilesByPhone(from);
 
   if (existing.length >= MAX_PROFILES_PER_PHONE) {
-    const lines = existing.map((p) => `• ${p.profile_id} (${p.status || "PENDING"})`).join("\n");
+  const latest = existing[0];
+  const lines = existing.map((p) => `• ${p.profile_id} (${p.status || "PENDING"})`).join("\n");
 
-    await sendText(
-      from,
-      `⚠️ You already have ${existing.length} profiles (max ${MAX_PROFILES_PER_PHONE}).
+  await sendText(
+    from,
+    `⚠️ You already have ${existing.length} profile (max ${MAX_PROFILES_PER_PHONE}).
 
 ${lines}
 
-Delete one first:`
-    );
+Choose what you want to do next:
+आगे क्या करना है, नीचे चुनें।`
+  );
 
-    const deleteButtons = existing.slice(0, 2).map((p) => ({
-      id: `DEL_PROFILE_${p.profile_id}`,
-      title: p.profile_id,
-    }));
+  await sendButtons(
+    from,
+    `Profile: ${latest.profile_id}`,
+    [
+      { id: `SELF_DELETE_${latest.profile_id}`, title: "DELETE" },
+      { id: `DETAILS_${latest.profile_id}`, title: "DETAILS" },
+      { id: "SEARCH", title: "SEARCH" },
+    ]
+  );
 
-    await sendButtons(
-      from,
-      "Tap a profile to delete\nजिस profile को delete करना है उसे tap करें",
-      deleteButtons
-    );
-
-    return;
-  }
+  return;
+}
 
   await setState(from, "ASK_NAME", {});
   await sendText(from, getPromptByStep("ASK_NAME"));
@@ -2289,17 +2300,33 @@ Delete one first:`
     if (rawInput && (cmd === "JOIN" || cmd === "NEWPROFILE")) {
       const existing = await findProfilesByPhone(from);
 
-      if (existing.length >= MAX_PROFILES_PER_PHONE) {
-        const lines = existing.map((p) => `• ${p.profile_id} (${p.status || "PENDING"})`).join("\n");
-        await sendText(
-          from,
-          `⚠️ You already have ${existing.length} profiles (max ${MAX_PROFILES_PER_PHONE}).\nआपके पास पहले से ${existing.length} profiles हैं (max ${MAX_PROFILES_PER_PHONE}).\n\n${lines}\n\nDelete one first.\nपहले एक profile delete कीजिए।`
-        );
+     if (existing.length >= MAX_PROFILES_PER_PHONE) {
+  const latest = existing[0];
+  const lines = existing.map((p) => `• ${p.profile_id} (${p.status || "PENDING"})`).join("\n");
 
-        const deleteButtons = existing.slice(0, 2).map((p) => ({
-          id: `DEL_PROFILE_${p.profile_id}`,
-          title: p.profile_id,
-        }));
+  await sendText(
+    from,
+    `⚠️ You already have ${existing.length} profile (max ${MAX_PROFILES_PER_PHONE}).
+आपके पास पहले से ${existing.length} profile है (max ${MAX_PROFILES_PER_PHONE}).
+
+${lines}
+
+Choose what you want to do next:
+आगे क्या करना है, नीचे चुनें।`
+  );
+
+  await sendButtons(
+    from,
+    `Profile: ${latest.profile_id}`,
+    [
+      { id: `SELF_DELETE_${latest.profile_id}`, title: "DELETE" },
+      { id: `DETAILS_${latest.profile_id}`, title: "DETAILS" },
+      { id: "SEARCH", title: "SEARCH" },
+    ]
+  );
+
+  return;
+}
 
         await sendButtons(from, "Tap a profile to delete\nजिस profile को delete करना है उसे tap करें", deleteButtons);
         return;
