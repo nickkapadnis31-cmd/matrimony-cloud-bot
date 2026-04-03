@@ -508,17 +508,20 @@ async function getShivReading(temp) {
 const geo = await getLatLonFromPlace(temp.birth_place || "");
 const lat = geo?.lat;
 const lon = geo?.lon;
+  const tzone = geo?.timezone ?? 5.5;
   
   if (SHIV_ASTROLOGY_API_URL && SHIV_ASTROLOGY_API_KEY && temp.dob && temp.birth_place) {
     try {
       const resp = await axios.post(
         SHIV_ASTROLOGY_API_URL,
         {
-          dob: formatDobForApi(temp.dob),
-          birth_time: temp.birth_time || "",
-          birth_place: temp.birth_place || "",
-          language: "hi",
-        },
+  dob: formatDobForApi(temp.dob),
+  birth_time: temp.birth_time || "",
+  lat: lat,
+  lon: lon,
+  tzone: tzone,
+  language: "hi",
+},
         {
           headers: {
             Authorization: `Bearer ${SHIV_ASTROLOGY_API_KEY}`,
@@ -527,14 +530,12 @@ const lon = geo?.lon;
           timeout: 20000,
         }
       );
-      const data = resp.data || {};
-      reading = {
-        numerology: Number(data.numerology || numerology),
-        luckyNumbers: Array.isArray(data.lucky_numbers) && data.lucky_numbers.length ? data.lucky_numbers : luckyNumbersForNumerology(numerology),
-        rashi: data.rashi || data.moon_sign || reading.rashi,
-        nakshatra: data.nakshatra || "",
-        exact: Boolean(data.rashi || data.moon_sign),
-      };
+      const data = resp.data;
+
+reading.rashi = data.sign || "";
+reading.nakshatra = data.Nakshatra || "";
+reading.exact = true;
+
     } catch (err) {
       console.error("Shiv astrology API fallback:", err?.response?.data || err.message);
     }
