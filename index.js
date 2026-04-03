@@ -505,7 +505,10 @@ async function getShivReading(temp) {
     nakshatra: "",
     exact: false,
   };
-
+const geo = await getLatLonFromPlace(temp.birth_place || "");
+const lat = geo?.lat;
+const lon = geo?.lon;
+  
   if (SHIV_ASTROLOGY_API_URL && SHIV_ASTROLOGY_API_KEY && temp.dob && temp.birth_place) {
     try {
       const resp = await axios.post(
