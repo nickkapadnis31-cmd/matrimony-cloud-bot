@@ -204,6 +204,338 @@ const MAX_DETAILS_PER_MONTH = 5;
 const MAX_INTEREST_PER_MONTH = 5;
 const RESULTS_PAGE_SIZE = 5;
 
+
+// ===================== Shiv Samadhan =====================
+const SHIV_SERVICE_NAME = "Shiv Samadhan";
+const SHIV_SERVICE_TAGLINE = "हर समस्या का समाधान";
+const SHIV_ASTROLOGY_API_URL = process.env.SHIV_ASTROLOGY_API_URL || "";
+const SHIV_ASTROLOGY_API_KEY = process.env.SHIV_ASTROLOGY_API_KEY || "";
+const SHIV_QR_IMAGE_URL = process.env.SHIV_QR_IMAGE_URL || "";
+const SHIV_UPI_ID = process.env.SHIV_UPI_ID || "";
+
+const SHIV_PRODUCT_IMAGES = {
+  BHAIRAV_YANTRA: process.env.SHIV_IMG_BHAIRAV_YANTRA || "",
+  LAXMI_KUBER_COIN: process.env.SHIV_IMG_LAXMI_KUBER_COIN || "",
+  LAXMI_KUBER_YANTRA: process.env.SHIV_IMG_LAXMI_KUBER_YANTRA || "",
+  RUDRAKSHA_BRACELET: process.env.SHIV_IMG_RUDRAKSHA_BRACELET || "",
+  NAZAR_BATTU: process.env.SHIV_IMG_NAZAR_BATTU || "",
+  CRYSTAL_TURTLE: process.env.SHIV_IMG_CRYSTAL_TURTLE || "",
+  KAMDHENU_COW: process.env.SHIV_IMG_KAMDHENU_COW || "",
+  SURYA_FRAME: process.env.SHIV_IMG_SURYA_FRAME || "",
+  SHIV_KADA: process.env.SHIV_IMG_SHIV_KADA || "",
+};
+
+const SHIV_PRODUCTS = {
+  BHAIRAV_YANTRA: { key: "BHAIRAV_YANTRA", title: "भैरव यंत्र", shortTitle: "भैरव ₹301", price: 301, image: () => SHIV_PRODUCT_IMAGES.BHAIRAV_YANTRA },
+  LAXMI_KUBER_COIN: { key: "LAXMI_KUBER_COIN", title: "लक्ष्मी-कुबेर कॉइन", shortTitle: "कॉइन ₹301", price: 301, image: () => SHIV_PRODUCT_IMAGES.LAXMI_KUBER_COIN },
+  LAXMI_KUBER_YANTRA: { key: "LAXMI_KUBER_YANTRA", title: "लक्ष्मी-कुबेर यंत्र", shortTitle: "यंत्र ₹301", price: 301, image: () => SHIV_PRODUCT_IMAGES.LAXMI_KUBER_YANTRA },
+  RUDRAKSHA_BRACELET: { key: "RUDRAKSHA_BRACELET", title: "रुद्राक्ष ब्रेसलेट", shortTitle: "ब्रेसलेट ₹501", price: 501, image: () => SHIV_PRODUCT_IMAGES.RUDRAKSHA_BRACELET },
+  NAZAR_BATTU: { key: "NAZAR_BATTU", title: "नजर बट्टू", shortTitle: "नजर ₹501", price: 501, image: () => SHIV_PRODUCT_IMAGES.NAZAR_BATTU },
+  CRYSTAL_TURTLE: { key: "CRYSTAL_TURTLE", title: "क्रिस्टल कछुआ", shortTitle: "कछुआ ₹501", price: 501, image: () => SHIV_PRODUCT_IMAGES.CRYSTAL_TURTLE },
+  KAMDHENU_COW: { key: "KAMDHENU_COW", title: "कामधेनु गाय", shortTitle: "कामधेनु ₹1001", price: 1001, image: () => SHIV_PRODUCT_IMAGES.KAMDHENU_COW },
+  SURYA_FRAME: { key: "SURYA_FRAME", title: "सूर्य फ्रेम", shortTitle: "सूर्य ₹1001", price: 1001, image: () => SHIV_PRODUCT_IMAGES.SURYA_FRAME },
+  SHIV_KADA: { key: "SHIV_KADA", title: "शिव कड़ा", shortTitle: "शिव कड़ा ₹1001", price: 1001, image: () => SHIV_PRODUCT_IMAGES.SHIV_KADA },
+};
+
+const SHIV_PROBLEMS = {
+  MARRIAGE: {
+    key: "MARRIAGE",
+    title: "शादी से जुड़ी समस्या",
+    hook: "क्या शादी में देरी हो रही है या सही रिश्ता नहीं मिल रहा?",
+    emotional: "समझ गया 🙏\n\nकई बार शादी में रुकावट, देरी या सही रिश्ता न मिलना repeated blockage की वजह से होता है।\nसही उपाय से धीरे-धीरे सुधार संभव है।",
+    products: ["BHAIRAV_YANTRA", "RUDRAKSHA_BRACELET", "NAZAR_BATTU"],
+  },
+  RELATION_KALAH: {
+    key: "RELATION_KALAH",
+    title: "रिश्तों में कलह",
+    hook: "क्या पति-पत्नी झगड़े, दूरी या परिवार में तनाव बढ़ रहा है?",
+    emotional: "समझ गया 🙏\n\nकई बार रिश्तों में कलह, दूरी और घर के अंदर तनाव energy imbalance की वजह से बढ़ता है।\nसही उपाय से positivity और shanti को support मिल सकता है।",
+    products: ["BHAIRAV_YANTRA", "RUDRAKSHA_BRACELET", "KAMDHENU_COW"],
+  },
+  MONEY: {
+    key: "MONEY",
+    title: "पैसों की समस्या",
+    hook: "क्या पैसा आता है लेकिन टिकता नहीं, या आर्थिक रुकावट बनी रहती है?",
+    emotional: "समझ गया 🙏\n\nकई बार आर्थिक रुकावट, पैसा न टिकना या व्यापार में नुकसान financial blockage की वजह से बार-बार होता है।\nसही उपाय से flow को support मिल सकता है।",
+    products: ["LAXMI_KUBER_COIN", "LAXMI_KUBER_YANTRA", "CRYSTAL_TURTLE"],
+  },
+  LOAN: {
+    key: "LOAN",
+    title: "लोन नहीं भर पा रहे",
+    hook: "क्या EMI का दबाव बढ़ रहा है और कर्ज कम नहीं हो रहा?",
+    emotional: "समझ गया 🙏\n\nकई बार loan pressure, EMI burden और पैसा आते ही खत्म हो जाना heavy blockage का संकेत होता है।\nसही उपाय से राहत को support मिल सकता है।",
+    products: ["LAXMI_KUBER_COIN", "LAXMI_KUBER_YANTRA", "CRYSTAL_TURTLE"],
+  },
+  RECOVERY: {
+    key: "RECOVERY",
+    title: "दिए गए पैसे वापस नहीं आ रहे",
+    hook: "क्या उधार दिया हुआ पैसा अटका हुआ है और वापस नहीं मिल रहा?",
+    emotional: "समझ गया 🙏\n\nकई बार दिया गया पैसा अटक जाना और बार-बार follow-up के बाद भी वापस न मिलना stuck energy का संकेत होता है।\nसही उपाय से recovery को support मिल सकता है।",
+    products: ["LAXMI_KUBER_COIN", "LAXMI_KUBER_YANTRA", "RUDRAKSHA_BRACELET"],
+  },
+  NEGATIVE: {
+    key: "NEGATIVE",
+    title: "नजर / नकारात्मक ऊर्जा",
+    hook: "क्या बार-बार काम बनते-बनते बिगड़ जाते हैं या negativity महसूस होती है?",
+    emotional: "समझ गया 🙏\n\nकई बार नजर, negativity या repeated रुकावटें बाहरी नकारात्मक प्रभाव की वजह से बढ़ती हैं।\nसही उपाय से protection को support मिल सकता है।",
+    products: ["BHAIRAV_YANTRA", "NAZAR_BATTU", "SHIV_KADA"],
+  },
+  GRAH_ASHANTI: {
+    key: "GRAH_ASHANTI",
+    title: "गृह अशांति",
+    hook: "क्या घर में झगड़े, क्लेश या शांति की कमी बनी रहती है?",
+    emotional: "समझ गया 🙏\n\nकई बार गृह अशांति, बार-बार झगड़े और घर का भारी माहौल negativity और imbalance की वजह से बढ़ता है।\nसही उपाय से घर की positivity को support मिल सकता है।",
+    products: ["KAMDHENU_COW", "SURYA_FRAME", "NAZAR_BATTU"],
+  },
+  MAN_ASHANTI: {
+    key: "MAN_ASHANTI",
+    title: "मन अशांति",
+    hook: "क्या मन बेचैन रहता है, डर या तनाव बार-बार बढ़ता है?",
+    emotional: "समझ गया 🙏\n\nकई बार मन अशांति, stress, डर और बेचैनी internal imbalance की वजह से बढ़ती है।\nसही उपाय से shanti और stability को support मिल सकता है।",
+    products: ["SHIV_KADA", "RUDRAKSHA_BRACELET", "SURYA_FRAME"],
+  },
+  CHILD: {
+    key: "CHILD",
+    title: "बच्चों की समस्या",
+    hook: "क्या बच्चे बहुत गुस्सा करते हैं, जिद्दी हैं या पढ़ाई में ध्यान नहीं लग रहा?",
+    emotional: "समझ गया 🙏\n\nकई बार बच्चों का aggressive behavior, गुस्सा या पढ़ाई में ध्यान न लगना घर की energy और routine imbalance से जुड़ा होता है।\nसही उपाय से support मिल सकता है।",
+    products: ["RUDRAKSHA_BRACELET", "SURYA_FRAME", "KAMDHENU_COW"],
+  },
+  TEEN: {
+    key: "TEEN",
+    title: "Teenage kids behaviour problem",
+    hook: "क्या teenage kids सुनते नहीं, attitude या गलत आदतें बढ़ रही हैं?",
+    emotional: "समझ गया 🙏\n\nकई बार teenage behavior, attitude, गुस्सा और घर से disconnect energy imbalance और pressure की वजह से बढ़ सकता है।\nसही उपाय से support मिल सकता है।",
+    products: ["RUDRAKSHA_BRACELET", "SURYA_FRAME", "KAMDHENU_COW"],
+  },
+  CAREER: {
+    key: "CAREER",
+    title: "करियर / सफलता",
+    hook: "क्या job नहीं लग रही, growth रुक गई है या confidence कम हो रहा है?",
+    emotional: "समझ गया 🙏\n\nकई बार career blockage, success delay और low confidence repeated रुकावट की वजह से बढ़ते हैं।\nसही उपाय से progress को support मिल सकता है।",
+    products: ["SURYA_FRAME", "RUDRAKSHA_BRACELET", "CRYSTAL_TURTLE"],
+  },
+};
+
+function isGreetingInput(v) {
+  const x = cleanUpper(v);
+  return ["HI", "HELLO", "HII", "HEY", "START", "MENU", "HOME"].includes(x);
+}
+
+function formatDobForApi(dob) {
+  if (!/^\d{2}-\d{2}-\d{4}$/.test(dob || "")) return dob || "";
+  const [dd, mm, yyyy] = dob.split("-");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function numerologyNumberFromDob(dob) {
+  const digits = String(dob || "").replace(/\D/g, "");
+  if (!digits) return 0;
+  let n = digits.split("").reduce((a, b) => a + Number(b || 0), 0);
+  while (n > 9) n = String(n).split("").reduce((a, b) => a + Number(b || 0), 0);
+  return n || 0;
+}
+
+function luckyNumbersForNumerology(n) {
+  const map = {
+    1: [1, 3, 5], 2: [2, 6, 7], 3: [3, 6, 9], 4: [1, 4, 8], 5: [1, 5, 6],
+    6: [3, 6, 9], 7: [2, 7, 9], 8: [1, 5, 8], 9: [3, 6, 9],
+  };
+  return map[n] || [n || 1];
+}
+
+function approxRashiFromDob(dob) {
+  if (!/^\d{2}-\d{2}-\d{4}$/.test(dob || "")) return "मेष";
+  const [dd, mm] = dob.split("-").map((x) => parseInt(x, 10));
+  const m = mm, d = dd;
+  if ((m === 4 && d >= 14) || (m === 5 && d <= 14)) return "मेष";
+  if ((m === 5 && d >= 15) || (m === 6 && d <= 14)) return "वृषभ";
+  if ((m === 6 && d >= 15) || (m === 7 && d <= 14)) return "मिथुन";
+  if ((m === 7 && d >= 15) || (m === 8 && d <= 14)) return "कर्क";
+  if ((m === 8 && d >= 15) || (m === 9 && d <= 15)) return "सिंह";
+  if ((m === 9 && d >= 16) || (m === 10 && d <= 15)) return "कन्या";
+  if ((m === 10 && d >= 16) || (m === 11 && d <= 14)) return "तुला";
+  if ((m === 11 && d >= 15) || (m === 12 && d <= 14)) return "वृश्चिक";
+  if ((m === 12 && d >= 15) || (m === 1 && d <= 13)) return "धनु";
+  if ((m === 1 && d >= 14) || (m === 2 && d <= 12)) return "मकर";
+  if ((m === 2 && d >= 13) || (m === 3 && d <= 14)) return "कुंभ";
+  return "मीन";
+}
+
+function numerologyInsight(n) {
+  const map = {
+    1: "Numerology Number 1 वाले लोग leadership nature के होते हैं, लेकिन impatience की वजह से decisions जल्दी ले लेते हैं।",
+    2: "Numerology Number 2 वाले लोग sensitive और emotional होते हैं, लेकिन overthinking की वजह से stress बढ़ सकता है।",
+    3: "Numerology Number 3 वाले लोग expressive और creative होते हैं, लेकिन focus टूट सकता है।",
+    4: "Numerology Number 4 वाले लोगों को मेहनत के बाद भी results delay से मिल सकते हैं।",
+    5: "Numerology Number 5 वाले लोग smart और fast thinker होते हैं, लेकिन stability maintain करना मुश्किल हो सकता है।",
+    6: "Numerology Number 6 वाले लोग family-oriented होते हैं, लेकिन जिम्मेदारियों का pressure ज्यादा महसूस कर सकते हैं।",
+    7: "Numerology Number 7 वाले लोग deep thinker होते हैं, लेकिन loneliness या overthinking बढ़ सकती है।",
+    8: "Numerology Number 8 वाले लोगों की life में ups and downs strong रहते हैं और मेहनत के बाद results देर से मिल सकते हैं।",
+    9: "Numerology Number 9 वाले लोग strong और passionate होते हैं, लेकिन emotional intensity decisions को affect कर सकती है।",
+  };
+  return map[n] || "आपकी life में कुछ चीजें delay से होती हैं, लेकिन सही guidance से support मिल सकता है।";
+}
+
+function rashiInsight(rashi) {
+  const map = {
+    "मेष": "मेष राशि वाले लोग energetic होते हैं, लेकिन impatience challenges बढ़ा सकता है।",
+    "वृषभ": "वृषभ राशि वाले लोग stable होते हैं, लेकिन change accept करने में समय लेते हैं।",
+    "मिथुन": "मिथुन राशि वाले लोग intelligent होते हैं, लेकिन mind जल्दी distract हो सकता है।",
+    "कर्क": "कर्क राशि वाले लोग emotional होते हैं, लेकिन attachment और चिंता बढ़ सकती है।",
+    "सिंह": "सिंह राशि वाले लोग confident होते हैं, लेकिन respect की strong need रहती है।",
+    "कन्या": "कन्या राशि वाले लोग practical होते हैं, लेकिन overthinking बढ़ सकती है।",
+    "तुला": "तुला राशि वाले लोग balance चाहते हैं, लेकिन decision delay हो सकता है।",
+    "वृश्चिक": "वृश्चिक राशि वाले लोग intense होते हैं, लेकिन emotions deep रहते हैं।",
+    "धनु": "धनु राशि वाले लोग optimistic होते हैं, लेकिन consistency break हो सकती है।",
+    "मकर": "मकर राशि वाले लोग disciplined होते हैं, लेकिन pressure ज्यादा लेते हैं।",
+    "कुंभ": "कुंभ राशि वाले लोग unique सोच रखते हैं, लेकिन emotional disconnect हो सकता है।",
+    "मीन": "मीन राशि वाले लोग imaginative होते हैं, लेकिन practical focus टूट सकता है।",
+  };
+  return map[rashi] || "राशि की energy आपकी life pattern को subtly affect कर सकती है।";
+}
+
+async function getShivReading(temp) {
+  const numerology = numerologyNumberFromDob(temp.dob || "");
+  let reading = {
+    numerology,
+    luckyNumbers: luckyNumbersForNumerology(numerology),
+    rashi: approxRashiFromDob(temp.dob || ""),
+    nakshatra: "",
+    exact: false,
+  };
+
+  if (SHIV_ASTROLOGY_API_URL && SHIV_ASTROLOGY_API_KEY && temp.dob && temp.birth_place) {
+    try {
+      const resp = await axios.post(
+        SHIV_ASTROLOGY_API_URL,
+        {
+          dob: formatDobForApi(temp.dob),
+          birth_time: temp.birth_time || "",
+          birth_place: temp.birth_place || "",
+          language: "hi",
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${SHIV_ASTROLOGY_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 20000,
+        }
+      );
+      const data = resp.data || {};
+      reading = {
+        numerology: Number(data.numerology || numerology),
+        luckyNumbers: Array.isArray(data.lucky_numbers) && data.lucky_numbers.length ? data.lucky_numbers : luckyNumbersForNumerology(numerology),
+        rashi: data.rashi || data.moon_sign || reading.rashi,
+        nakshatra: data.nakshatra || "",
+        exact: Boolean(data.rashi || data.moon_sign),
+      };
+    } catch (err) {
+      console.error("Shiv astrology API fallback:", err?.response?.data || err.message);
+    }
+  }
+
+  return reading;
+}
+
+function buildShivResultMessage(temp, reading) {
+  return `🔮 *आपकी Basic Reading*\n\n- Numerology Number: *${reading.numerology || "-"}*\n- Lucky Number: *${(reading.luckyNumbers || []).join(", ")}*\n- Rashi: *${reading.rashi || "-"}*${reading.nakshatra ? `\n- Nakshatra: *${reading.nakshatra}*` : ""}\n\n${numerologyInsight(reading.numerology)}\n\n${rashiInsight(reading.rashi)}\n\nअगर यह बातें आपकी life से जुड़ी हुई लगती हैं, तो आगे आपकी problem के अनुसार solution दिया जा सकता है।`;
+}
+
+async function showMainServiceMenu(to) {
+  await sendButtons(to, "आप किस सेवा में interested हैं?", [
+    { id: "VIVAHO_HOME", title: "Vivaho" },
+    { id: "SHIV_HOME", title: "Shiv Samadhan" },
+  ]);
+}
+
+async function showShivIntro(to) {
+  await sendButtons(
+    to,
+    "क्या आप बार-बार परेशान हो रहे हैं?\n\nकई बार यह नकारात्मक ऊर्जा या life imbalance की वजह से होता है।\n\nचिंता मत करें… समाधान है 🙏",
+    [
+      { id: "SHIV_PROCEED", title: "Proceed" },
+      { id: "SHIV_START_AGAIN", title: "Start Again" },
+    ]
+  );
+}
+
+async function showShivProblemList(to) {
+  await sendList(to, "अपनी समस्या चुनें", "Select", [
+    { id: "SHIV_PROB_MARRIAGE", title: "शादी समस्या" },
+    { id: "SHIV_PROB_RELATION_KALAH", title: "रिश्तों में कलह" },
+    { id: "SHIV_PROB_MONEY", title: "पैसों की समस्या" },
+    { id: "SHIV_PROB_LOAN", title: "लोन समस्या" },
+    { id: "SHIV_PROB_RECOVERY", title: "पैसा वापस नहीं" },
+    { id: "SHIV_PROB_NEGATIVE", title: "नजर / negativity" },
+    { id: "SHIV_PROB_GRAH_ASHANTI", title: "गृह अशांति" },
+    { id: "SHIV_PROB_MAN_ASHANTI", title: "मन अशांति" },
+    { id: "SHIV_PROB_CHILD", title: "बच्चों की समस्या" },
+    { id: "SHIV_PROB_TEEN", title: "Teenage problem" },
+    { id: "SHIV_PROB_CAREER", title: "करियर / सफलता" },
+  ], "Problems", "Shiv Samadhan");
+}
+
+async function showShivProducts(to, temp) {
+  const problem = SHIV_PROBLEMS[temp.selectedProblem] || null;
+  if (!problem) {
+    await sendText(to, "Please select a problem first.\nपहले अपनी problem चुनिए।");
+    return;
+  }
+  const products = problem.products.map((k) => SHIV_PRODUCTS[k]).filter(Boolean);
+  await sendText(
+    to,
+    `नीचे दी गई वस्तुएं आपकी DOB, personal details और चुनी हुई समस्या के आधार पर तैयार की जाएंगी।\n\nयह आपके लिए विशेष रूप से तैयार किया जाएगा।`
+  );
+  await sendList(
+    to,
+    "अपना product चुनें",
+    "Products",
+    products.map((p) => ({ id: `SHIV_PRODUCT_${p.key}`, title: trimTo(p.title, 24), description: `₹${p.price}` })),
+    "Available Products"
+  );
+  await sendButtons(to, "आगे क्या करना है?", [{ id: "SHIV_START_AGAIN", title: "Start Again" }]);
+}
+
+async function showShivProductDetail(to, productKey, temp) {
+  const product = SHIV_PRODUCTS[productKey];
+  if (!product) return;
+  temp.selectedProduct = product.key;
+  temp.selectedProductTitle = product.title;
+  temp.selectedProductPrice = product.price;
+  await setState(to, "SHIV_PRODUCT_DETAIL", temp);
+  const img = product.image();
+  if (img) {
+    await sendImageByLink(to, img, `${product.title}\n₹${product.price}`);
+  }
+  await sendButtons(
+    to,
+    `*${product.title}*\n\nयह आपकी DOB, personal details और चुनी हुई समस्या के आधार पर specially तैयार किया जाएगा।\n\nकई लोगों को regular use के साथ कुछ ही दिनों में results feel हुए हैं।\n\n💰 Price: ₹${product.price}`,
+    [
+      { id: "SHIV_BUY_NOW", title: "Buy Now" },
+      { id: "SHIV_START_AGAIN", title: "Start Again" },
+    ]
+  );
+}
+
+async function sendShivAdminOrder(temp, userPhone) {
+  const img = SHIV_PRODUCTS[temp.selectedProduct || ""]?.image?.() || "";
+  if (img) {
+    try {
+      await sendImageByLink(ADMIN_PHONE, img, `New Order\n${temp.selectedProductTitle || ""} | ₹${temp.selectedProductPrice || ""}`);
+    } catch (e) {
+      console.error("Admin image send failed:", e?.response?.data || e.message);
+    }
+  }
+  const adminBody = `🆕 *New Shiv Samadhan Order*\n\nName: ${temp.name || ""}\nPhone: ${userPhone}\nDOB: ${temp.dob || ""}\nBirth Time: ${temp.birth_time || "SKIP"}\nBirth Place: ${temp.birth_place || ""}\n\nProblem: ${SHIV_PROBLEMS[temp.selectedProblem]?.title || temp.selectedProblem || ""}\nProduct: ${temp.selectedProductTitle || ""}\nPrice: ₹${temp.selectedProductPrice || ""}\n\nDelivery Details:\n${temp.delivery_details || ""}\n\nPayment: Done ✅`;
+  await sendText(ADMIN_PHONE, adminBody);
+  await sendButtons(ADMIN_PHONE, "Confirm this order", [
+    { id: `SHIV_ADMIN_CONFIRM_${userPhone}`, title: "CONFIRM" },
+    { id: `SHIV_ADMIN_REJECT_${userPhone}`, title: "NOT CONFIRMED" },
+  ]);
+}
+
 // ===================== Messages =====================
 const WELCOME_MSG =
 `💍 *${BRAND_NAME}*
@@ -1112,6 +1444,102 @@ if (interactiveId.startsWith("ACCEPT_")) {
 const rawInput = effectiveInput;
 const { cmd, args } = parseCommand(rawInput);
 
+
+    // ===================== SHIV SAMADHAN GLOBAL =====================
+    if (interactiveId === "SHIV_START_AGAIN") {
+      await setState(from, "", {});
+      await showMainServiceMenu(from);
+      return;
+    }
+
+    if (interactiveId === "VIVAHO_HOME") {
+      await sendText(from, WELCOME_MSG);
+      await sendText(from, COMMANDS_MSG);
+      await setState(from, "ONBOARDING_DECISION", {});
+      await sendProceedStopButtons(from);
+      return;
+    }
+
+    if (interactiveId === "SHIV_HOME") {
+      await setState(from, "SHIV_INTRO", {});
+      await showShivIntro(from);
+      return;
+    }
+
+    if (interactiveId === "SHIV_PROCEED" && st.step === "SHIV_INTRO") {
+      await setState(from, "SHIV_ASK_NAME", {});
+      await sendText(from, "अपना पूरा नाम भेजें");
+      return;
+    }
+
+    if (interactiveId === "SHIV_RESULT_PROCEED") {
+      await setState(from, "SHIV_PROBLEM_LIST", temp);
+      await showShivProblemList(from);
+      return;
+    }
+
+    if (interactiveId.startsWith("SHIV_PROB_")) {
+      const key = interactiveId.replace("SHIV_PROB_", "");
+      const problem = SHIV_PROBLEMS[key] || null;
+      if (!problem) {
+        await sendText(from, "Problem not found.\nProblem नहीं मिली।");
+        return;
+      }
+      temp.selectedProblem = key;
+      await setState(from, "SHIV_PROBLEM_SELECTED", temp);
+      await sendButtons(from, problem.emotional, [
+        { id: "SHIV_SHOW_SOLUTIONS", title: "समाधान देखें" },
+        { id: "SHIV_START_AGAIN", title: "Start Again" },
+      ]);
+      return;
+    }
+
+    if (interactiveId === "SHIV_SHOW_SOLUTIONS") {
+      await setState(from, "SHIV_PRODUCT_LIST", temp);
+      await showShivProducts(from, temp);
+      return;
+    }
+
+    if (interactiveId.startsWith("SHIV_PRODUCT_")) {
+      const productKey = interactiveId.replace("SHIV_PRODUCT_", "");
+      await showShivProductDetail(from, productKey, temp);
+      return;
+    }
+
+    if (interactiveId === "SHIV_BUY_NOW") {
+      await setState(from, "SHIV_ADDRESS", temp);
+      await sendText(from, "Order process शुरू करने के लिए अपनी delivery details भेजें:\n\nName\nMobile Number\nFull Address\nPincode");
+      return;
+    }
+
+    if (interactiveId === "SHIV_PAYMENT_DONE") {
+      temp.payment_done = true;
+      await setState(from, "SHIV_PENDING_ADMIN", temp);
+      await sendShivAdminOrder(temp, from);
+      await sendText(from, "✅ Payment received request sent to admin.\nअब verification के बाद confirmation भेजा जाएगा।");
+      return;
+    }
+
+    if (interactiveId.startsWith("SHIV_ADMIN_CONFIRM_") || interactiveId.startsWith("SHIV_ADMIN_REJECT_")) {
+      if (!isAdmin(from)) {
+        await sendText(from, "❌ Only admin can confirm orders.");
+        return;
+      }
+      const userPhone = normalizePhone(interactiveId.replace("SHIV_ADMIN_CONFIRM_", "").replace("SHIV_ADMIN_REJECT_", ""));
+      const userState = await getState(userPhone);
+      const userTemp = safeJsonParse(userState.temp_data || "{}", {});
+      if (interactiveId.startsWith("SHIV_ADMIN_CONFIRM_")) {
+        await setState(userPhone, "", {});
+        await sendText(userPhone, `✅ Order Confirmed\n\n👉 आपका order successfully receive हो गया है\n\n📦 Product: ${userTemp.selectedProductTitle || ""}\n💰 Price: ₹${userTemp.selectedProductPrice || ""}\n\n👉 आपकी वस्तु order and delivery details के अनुसार, आपकी DOB, personal details और problem के अनुसार तैयार की जाएगी\n\n🚚 Delivery: 7–8 days`);
+        await sendText(from, `✅ Confirmed order for ${userPhone}`);
+      } else {
+        await setState(userPhone, "SHIV_PAYMENT", userTemp);
+        await sendText(userPhone, "❌ Payment not verified. कृपया payment check करके दोबारा Payment Done दबाएँ या admin से संपर्क करें।");
+        await sendText(from, `❌ Marked not confirmed for ${userPhone}`);
+      }
+      return;
+    }
+
     // ===================== GLOBAL BUTTON / SHORTCUT ACTIONS =====================
     if (interactiveId.startsWith("DEL_PROFILE_") || interactiveId.startsWith("SELF_DELETE_")) {
       const profileId = normalizeProfileId(interactiveId.replace("DEL_PROFILE_", "").replace("SELF_DELETE_", ""));
@@ -1767,11 +2195,152 @@ Delete one first:`
     // ===================== NO ACTIVE STEP =====================
     if (!st.step) {
       if (rawInput) {
-        await sendText(from, WELCOME_MSG);
-        await sendText(from, COMMANDS_MSG);
-        await setState(from, "ONBOARDING_DECISION", {});
-        await sendProceedStopButtons(from);
+        if (isGreetingInput(rawInput)) {
+          await showMainServiceMenu(from);
+        } else {
+          await sendText(from, WELCOME_MSG);
+          await sendText(from, COMMANDS_MSG);
+          await setState(from, "ONBOARDING_DECISION", {});
+          await sendProceedStopButtons(from);
+        }
       }
+      return;
+    }
+
+
+    // ===================== SHIV SAMADHAN STATES =====================
+    if (st.step === "SHIV_INTRO") {
+      if (cmd === "PROCEED") {
+        await setState(from, "SHIV_ASK_NAME", temp);
+        await sendText(from, "अपना पूरा नाम भेजें");
+        return;
+      }
+      await showShivIntro(from);
+      return;
+    }
+
+    if (st.step === "SHIV_ASK_NAME") {
+      if (!rawInput || rawInput.length < 2) {
+        await sendText(from, "कृपया अपना सही नाम भेजें।");
+        return;
+      }
+      temp.name = rawInput;
+      await setState(from, "SHIV_ASK_DOB", temp);
+      await sendText(from, "अपनी Date of Birth भेजें\nFormat: DD-MM-YYYY");
+      return;
+    }
+
+    if (st.step === "SHIV_ASK_DOB") {
+      if (!/^\d{2}-\d{2}-\d{4}$/.test(rawInput || "")) {
+        await sendText(from, "गलत format. कृपया DD-MM-YYYY में DOB भेजें।");
+        return;
+      }
+      temp.dob = rawInput;
+      await setState(from, "SHIV_ASK_BIRTH_TIME", temp);
+      await sendButtons(from, "अपना Birth Time भेजें\nExample: 09:25 AM\n\nअगर exact time नहीं पता, तो SKIP करें।", [
+        { id: "SHIV_SKIP_TIME", title: "SKIP" },
+        { id: "SHIV_START_AGAIN", title: "Start Again" },
+      ]);
+      return;
+    }
+
+    if (st.step === "SHIV_ASK_BIRTH_TIME") {
+      if (interactiveId === "SHIV_SKIP_TIME" || cmd === "SKIP") {
+        temp.birth_time = "SKIP";
+      } else if (!rawInput) {
+        await sendText(from, "कृपया Birth Time भेजें या SKIP करें।");
+        return;
+      } else {
+        temp.birth_time = rawInput;
+      }
+      await setState(from, "SHIV_ASK_BIRTH_PLACE", temp);
+      await sendText(from, "अपना Birth Place भेजें");
+      return;
+    }
+
+    if (st.step === "SHIV_ASK_BIRTH_PLACE") {
+      if (!rawInput || rawInput.length < 2) {
+        await sendText(from, "कृपया सही Birth Place भेजें।");
+        return;
+      }
+      temp.birth_place = rawInput;
+      const reading = await getShivReading(temp);
+      temp.reading = reading;
+      await setState(from, "SHIV_RESULT", temp);
+      await sendButtons(from, buildShivResultMessage(temp, reading), [
+        { id: "SHIV_RESULT_PROCEED", title: "Proceed" },
+        { id: "SHIV_START_AGAIN", title: "Start Again" },
+      ]);
+      return;
+    }
+
+    if (st.step === "SHIV_RESULT") {
+      await sendButtons(from, buildShivResultMessage(temp, temp.reading || {}), [
+        { id: "SHIV_RESULT_PROCEED", title: "Proceed" },
+        { id: "SHIV_START_AGAIN", title: "Start Again" },
+      ]);
+      return;
+    }
+
+    if (st.step === "SHIV_PROBLEM_LIST") {
+      await showShivProblemList(from);
+      return;
+    }
+
+    if (st.step === "SHIV_PROBLEM_SELECTED") {
+      const problem = SHIV_PROBLEMS[temp.selectedProblem] || null;
+      if (!problem) {
+        await showShivProblemList(from);
+        return;
+      }
+      await sendButtons(from, problem.emotional, [
+        { id: "SHIV_SHOW_SOLUTIONS", title: "समाधान देखें" },
+        { id: "SHIV_START_AGAIN", title: "Start Again" },
+      ]);
+      return;
+    }
+
+    if (st.step === "SHIV_PRODUCT_LIST") {
+      await showShivProducts(from, temp);
+      return;
+    }
+
+    if (st.step === "SHIV_PRODUCT_DETAIL") {
+      if (!temp.selectedProduct) {
+        await showShivProducts(from, temp);
+        return;
+      }
+      await showShivProductDetail(from, temp.selectedProduct, temp);
+      return;
+    }
+
+    if (st.step === "SHIV_ADDRESS") {
+      if (!rawInput || rawInput.length < 10) {
+        await sendText(from, "कृपया पूरा delivery address भेजें।");
+        return;
+      }
+      temp.delivery_details = rawInput;
+      await setState(from, "SHIV_PAYMENT", temp);
+      if (SHIV_QR_IMAGE_URL) {
+        await sendImageByLink(from, SHIV_QR_IMAGE_URL, "Order confirm करने के लिए payment करें");
+      }
+      await sendButtons(from, `Order confirm करने के लिए नीचे दिए गए QR पर payment करें${SHIV_UPI_ID ? `\nUPI: ${SHIV_UPI_ID}` : ""}`, [
+        { id: "SHIV_PAYMENT_DONE", title: "Payment Done" },
+        { id: "SHIV_START_AGAIN", title: "Start Again" },
+      ]);
+      return;
+    }
+
+    if (st.step === "SHIV_PAYMENT") {
+      await sendButtons(from, `Order confirm करने के लिए नीचे दिए गए QR पर payment करें${SHIV_UPI_ID ? `\nUPI: ${SHIV_UPI_ID}` : ""}`, [
+        { id: "SHIV_PAYMENT_DONE", title: "Payment Done" },
+        { id: "SHIV_START_AGAIN", title: "Start Again" },
+      ]);
+      return;
+    }
+
+    if (st.step === "SHIV_PENDING_ADMIN") {
+      await sendText(from, "Payment verification pending. कृपया admin confirmation का wait करें।");
       return;
     }
 
