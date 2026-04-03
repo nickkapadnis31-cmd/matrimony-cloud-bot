@@ -2447,19 +2447,21 @@ Delete one first:`
     }
 
     if (st.step === "SHIV_PAYMENT") {
-      await sendText(
-        from,
-        `👉 Order confirm करने के लिए
-नीचे दिए गए QR पर payment करें...${SHIV_UPI_ID ? `
-UPI: ${SHIV_UPI_ID}` : ""}`
-      );
+      
       if (SHIV_QR_IMAGE_URL) {
         try {
-          await sendImageByLink(from, SHIV_QR_IMAGE_URL, "Scan & Pay");
+          await sendImageByLink(
+  from,
+  SHIV_QR_IMAGE_URL,
+  `👉 Order confirm करने के लिए नीचे दिए गए QR पर payment करें...
+UPI: ${SHIV_UPI_ID || ""}`
+);
+          
         } catch (e) {
           console.error("Shiv QR send failed:", e?.response?.data || e.message);
         }
       }
+      await new Promise(r => setTimeout(r, 800));
       await sendButtons(from, "Payment complete होने के बाद नीचे क्लिक करें", [
         { id: "SHIV_PAYMENT_DONE", title: "Payment Done" },
         { id: "SHIV_START_AGAIN", title: "Start Again" },
