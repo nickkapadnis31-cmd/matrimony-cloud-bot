@@ -2266,7 +2266,7 @@ Choose what you want to do next:
     from,
     `Profile: ${latest.profile_id}`,
     [
-      { id: `SELF_DELETE_${latest.profile_id}`, title: "DELETE" },
+      { id: `DELETE_${latest.profile_id}`, title: "DELETE" },
       { id: `DETAILS_${latest.profile_id}`, title: "DETAILS" },
       { id: "SEARCH", title: "SEARCH" },
     ]
