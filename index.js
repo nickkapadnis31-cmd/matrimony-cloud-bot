@@ -69,7 +69,40 @@ function safeJsonParse(s, fallback) {
     return fallback;
   }
 }
+// ===================== GEO HELPERS =====================
 
+async function getLatLonFromPlace(place) {
+  const key = process.env.OPENCAGE_API_KEY || "";
+  if (!key || !place) return null;
+
+  try {
+    const url = "https://api.opencagedata.com/geocode/v1/json";
+    const resp = await axios.get(url, {
+      params: {
+        q: place,
+        key,
+        limit: 1,
+        countrycode: "in",
+      },
+      timeout: 15000,
+    });
+
+    const result = resp.data?.results?.[0];
+    if (!result?.geometry) return null;
+
+    return {
+      lat: result.geometry.lat,
+      lon: result.geometry.lng,
+      timezone:
+        Number(result.annotations?.timezone?.offset_string?.slice(0, 3)) +
+          (Number(result.annotations?.timezone?.offset_string?.slice(4, 6)) || 0) / 60 || 5.5,
+      formatted: result.formatted || place,
+    };
+  } catch (e) {
+    console.error("OpenCage error:", e?.response?.data || e.message);
+    return null;
+  }
+}
 function parseCommand(text) {
   const parts = (text || "").trim().split(/\s+/);
   return { cmd: (parts[0] || "").toUpperCase(), args: parts.slice(1) };
