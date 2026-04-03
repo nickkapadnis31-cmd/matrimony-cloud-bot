@@ -2327,11 +2327,6 @@ Choose what you want to do next:
 
   return;
 }
-
-        await sendButtons(from, "Tap a profile to delete\nजिस profile को delete करना है उसे tap करें", deleteButtons);
-        return;
-      }
-
       await sendText(from, WELCOME_MSG);
       await sendText(from, COMMANDS_MSG);
       await setState(from, "ONBOARDING_DECISION", {});
