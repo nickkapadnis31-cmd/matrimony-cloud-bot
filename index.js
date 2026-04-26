@@ -523,8 +523,11 @@ const lon = geo?.lon;
   language: "hi",
 },
         {
-          headers: {
-  "x-astrologyapi-key": SHIV_ASTROLOGY_API_KEY,
+          auth: {
+  username: process.env.SHIV_ASTROLOGY_API_USER,
+  password: process.env.SHIV_ASTROLOGY_API_KEY,
+},
+headers: {
   "Content-Type": "application/json",
 },
           timeout: 20000,
@@ -532,8 +535,8 @@ const lon = geo?.lon;
       );
       const data = resp.data;
 
-reading.rashi = data.sign || "";
-reading.nakshatra = data.Nakshatra || "";
+reading.rashi = data.rashi || data.moon_sign || data.sign || "";
+reading.nakshatra = data.nakshatra || "";
 reading.exact = true;
 
     } catch (err) {
