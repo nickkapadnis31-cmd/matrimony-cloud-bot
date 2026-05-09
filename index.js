@@ -1,4 +1,4 @@
-// index.js — Vivaho WhatsApp Matrimony Bot (Final Version)
+// index.js — Vivaho WhatsApp Matrimony Bot (Polished Final Version)
 // Brand: Vivaho | Tagline: "नवीन नाती – विश्वासाने जोडलेली."
 
 require("dotenv").config();
@@ -67,13 +67,6 @@ function calcAgeFromDobDDMMYYYY(dob) {
   return age;
 }
 
-function oppositeGender(g) {
-  const x = (g || "").toLowerCase();
-  if (x === "male") return "female";
-  if (x === "female") return "male";
-  return "";
-}
-
 function cleanLower(v) {
   return String(v || "").trim().toLowerCase();
 }
@@ -106,7 +99,7 @@ function isSame(v) {
 }
 
 function isGreeting(text) {
-  const greetings = ["HI", "HELLO", "HII", "HEY", "START", "MENU", "HOME", "VIVAHO", "NAMSTE", "नमस्ते", "नमस्कार"];
+  const greetings = ["HI", "HELLO", "HII", "HEY", "START", "MENU", "HOME", "VIVAHO", "NAMSTE", "नमस्ते", "नमस्कार", "HI VIVAHO", "HELLO VIVAHO"];
   return greetings.includes(cleanUpper(text));
 }
 
@@ -124,7 +117,7 @@ const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || "";
 const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "";
 const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET || "";
 const UPI_ID = process.env.UPI_ID || "";
-const QR_IMAGE_URL = process.env.QR_IMAGE_URL || "";
+const QR_IMAGE_URL = process.env.VIVAHO_QR || process.env.QR_IMAGE_URL || "";
 
 function isAdmin(from) {
   const f = normalizePhone(from);
@@ -141,60 +134,23 @@ const REQUESTS_TAB = "requests";
 const MAX_PROFILES_PER_PHONE = 1;
 const MIN_AGE = 18;
 
-// Bilingual Messages (English + Hindi)
-const WELCOME_MSG = `✨ *${BRAND_NAME}* ✨
-${BRAND_TAGLINE}
+// Global search cache
+global.searchCache = new Map();
 
-💍 *Welcome to your trusted Matrimony Service*
-*आपके विश्वसनीय मैट्रिमोनी सर्विस में आपका स्वागत है*
+// ===================== Bilingual Messages =====================
+const WELCOME_MSG = `✨ *${BRAND_NAME}* ✨\n${BRAND_TAGLINE}\n\n💍 *Welcome to your trusted Matrimony Service*\n*आपके विश्वसनीय मैट्रिमोनी सर्विस में आपका स्वागत है*\n\n📌 *Commands / कमांड्स:*\n• *JOIN* - Create profile | प्रोफाइल बनाएं\n• *SEARCH* - Find matches | रिश्ते खोजें\n• *STOP* - Cancel | रद्द करें\n\n👇 *Type JOIN, SEARCH, or STOP* 👇`;
 
-📌 *Commands / कमांड्स:*
-• *JOIN* - Create profile | प्रोफाइल बनाएं
-• *SEARCH* - Find matches | रिश्ते खोजें
-• *STOP* - Cancel | रद्द करें
+const SEARCH_GENDER_MSG = `👰 *Select Bride* OR 🤵 *Select Groom*\n*वधू चुनें या वर चुनें* 👇`;
 
-👇 *Type JOIN, SEARCH, or STOP* 👇`;
+const SEARCHING_MSG = `🔍 *Searching for matches...* ⏳\n*मैच ढूंढे जा रहे हैं...*`;
 
-const SEARCH_GENDER_MSG = `👰 *Select Bride* OR 🤵 *Select Groom*
+const NO_MATCHES_MSG = `😔 *No matches found at this moment*\n*इस समय कोई मैच नहीं मिला*\n\n💫 *Try again later or create a profile to get discovered*\n*बाद में पुनः प्रयास करें या प्रोफाइल बनाएं*`;
 
-*वधू चुनें या वर चुनें* 👇`;
-
-const SEARCHING_MSG = `🔍 *Searching for matches...* ⏳
-*मैच ढूंढे जा रहे हैं...*`;
-
-const NO_MATCHES_MSG = `😔 *No matches found at this moment*
-*इस समय कोई मैच नहीं मिला*
-
-💫 *Try again later or create a profile to get discovered*
-*बाद में पुनः प्रयास करें या प्रोफाइल बनाएं*
-
-👇 *Start a new search* 👇`;
-
-const PAYMENT_REQUIRED_MSG = `❌ *Please JOIN to send interest and view contact details*
-*कृपया INTEREST भेजने और CONTACT देखने के लिए JOIN करें*
-
-💰 *Plans / प्लान:*
-• ₹300 for 3 months (Interest only)
-• ₹1000 for 1 year (Interest only)  
-• ₹2000 for 1 year (Interest + Contact)
-
-👇 *Choose an option* 👇`;
-
-const PROFILE_CARD_TEMPLATE = (profile, age) => `📷 *Profile ${profile.profile_id}*
-
-🎂 Age / उम्र: ${age || "NA"}
-📏 Height / ऊंचाई: ${profile.height || "NA"}
-🕉️ Religion / धर्म: ${profile.religion || "NA"}
-👥 Caste / जात: ${profile.caste || "NA"}
-🎓 Education / शिक्षा: ${profile.education || "NA"}
-💼 Job / नौकरी: ${profile.job_title || profile.job || "NA"}
-🏠 Native / मूल स्थान: ${profile.native_place || "NA"}
-🏢 Work / कार्य स्थल: ${profile.work_city || "NA"}`;
+const PROFILE_CARD_TEMPLATE = (profile, age) => `📷 *Profile ${profile.profile_id}*\n\n🎂 Age / उम्र: ${age || "NA"}\n📏 Height / ऊंचाई: ${profile.height || "NA"}\n🕉️ Religion / धर्म: ${profile.religion || "NA"}\n👥 Caste / जात: ${profile.caste || "NA"}\n🎓 Education / शिक्षा: ${profile.education || "NA"}\n💼 Job / नौकरी: ${profile.job_title || profile.job || "NA"}\n🏠 Native / मूल स्थान: ${profile.native_place || "NA"}\n🏢 Work / कार्य स्थल: ${profile.work_city || "NA"}`;
 
 const ACTION_BUTTONS_MSG = `👇 *Choose action* / *कोई कार्य चुनें* 👇`;
 
-// Global search cache (in memory, not in sheet to avoid 50k limit)
-global.searchCache = new Map();
+const PAYMENT_PLANS_MSG = `💰 *Premium Plans / प्रीमियम प्लान*\n\n💝 *₹300 - 3 Months*\n   ✓ Send Interest | रिश्ते भेजें\n\n💝 *₹1000 - 1 Year*\n   ✓ Send Interest | रिश्ते भेजें\n\n💎 *₹2000 - 1 Year (Premium)*\n   ✓ Send Interest + View Contact\n   ✓ रिश्ते भेजें + संपर्क देखें`;
 
 // ===================== Cloudinary =====================
 cloudinary.config({
@@ -255,54 +211,66 @@ async function sendImageByLink(to, imageLink, caption = "") {
   const phone = normalizePhone(to);
   if (!phone) return;
   const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
-  await axios.post(
-    url,
-    { messaging_product: "whatsapp", to: phone, type: "image", image: { link: imageLink, ...(caption ? { caption: trimTo(caption, 4096) } : {}) } },
-    { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, "Content-Type": "application/json" }, timeout: 20000 }
-  );
+  try {
+    await axios.post(
+      url,
+      { messaging_product: "whatsapp", to: phone, type: "image", image: { link: imageLink, ...(caption ? { caption: trimTo(caption, 4096) } : {}) } },
+      { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, "Content-Type": "application/json" }, timeout: 20000 }
+    );
+  } catch (err) {
+    console.error("sendImageByLink failed:", err?.response?.data || err.message);
+  }
 }
 
 async function sendButtons(to, body, buttons) {
   const phone = normalizePhone(to);
   if (!phone || !buttons || buttons.length === 0 || buttons.length > 3) return;
   const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
-  await axios.post(
-    url,
-    {
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "interactive",
-      interactive: {
-        type: "button",
-        body: { text: trimTo(body, 1024) },
-        action: { buttons: buttons.map((b) => ({ type: "reply", reply: { id: String(b.id).slice(0, 256), title: String(b.title).slice(0, 20) } })) }
-      }
-    },
-    { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, "Content-Type": "application/json" }, timeout: 20000 }
-  );
+  try {
+    await axios.post(
+      url,
+      {
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "interactive",
+        interactive: {
+          type: "button",
+          body: { text: trimTo(body, 1024) },
+          action: { buttons: buttons.map((b) => ({ type: "reply", reply: { id: String(b.id).slice(0, 256), title: String(b.title).slice(0, 20) } })) }
+        }
+      },
+      { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, "Content-Type": "application/json" }, timeout: 20000 }
+    );
+  } catch (err) {
+    console.error("sendButtons failed:", err?.response?.data || err.message);
+  }
 }
 
 async function sendList(to, body, buttonText, rows, sectionTitle = "Select") {
   const phone = normalizePhone(to);
   if (!phone || !rows || !rows.length) return;
   const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
-  await axios.post(
-    url,
-    {
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "interactive",
-      interactive: {
-        type: "list",
-        body: { text: trimTo(body, 1024) },
-        action: {
-          button: trimTo(buttonText || "Select", 20),
-          sections: [{ title: trimTo(sectionTitle, 24), rows: rows.map((r) => ({ id: String(r.id).slice(0, 256), title: String(r.title).slice(0, 24) })) }]
+  try {
+    await axios.post(
+      url,
+      {
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "interactive",
+        interactive: {
+          type: "list",
+          body: { text: trimTo(body, 1024) },
+          action: {
+            button: trimTo(buttonText || "Select", 20),
+            sections: [{ title: trimTo(sectionTitle, 24), rows: rows.map((r) => ({ id: String(r.id).slice(0, 256), title: String(r.title).slice(0, 24) })) }]
+          }
         }
-      }
-    },
-    { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, "Content-Type": "application/json" }, timeout: 20000 }
-  );
+      },
+      { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, "Content-Type": "application/json" }, timeout: 20000 }
+    );
+  } catch (err) {
+    console.error("sendList failed:", err?.response?.data || err.message);
+  }
 }
 
 async function sendJoinSearchStopButtons(to) {
@@ -491,24 +459,24 @@ async function findInterestRequest({ from_profile_id, to_profile_id }) {
 // ===================== Admin Notifications =====================
 async function notifyAdminNewProfile(profileId, phone, temp) {
   if (!ADMIN_PHONE) return;
-  await sendText(ADMIN_PHONE, `🆕 New Profile\nID: ${profileId}\nPhone: ${phone}\nName: ${temp.name || ""} ${temp.surname || ""}`);
+  await sendText(ADMIN_PHONE, `🆕 *New Registration*\n\n🆔 ID: ${profileId}\n📱 Phone: ${phone}\n👤 Name: ${temp.name || ""} ${temp.surname || ""}\n⚥ Gender: ${temp.gender || ""}\n📅 DOB: ${temp.date_of_birth || ""}`);
 }
 
 async function notifyAdminPayment(userPhone, profileId, planType) {
   if (!ADMIN_PHONE) return;
   let planMsg = "", buttons = [];
   if (planType === "PLAN_1_3MO") {
-    planMsg = "₹300 for 3 months";
-    buttons = [{ id: `ADMIN_APPROVE_1_3MO_${profileId}_${userPhone}`, title: "APPROVE 1" }, { id: `ADMIN_REJECT_${profileId}_${userPhone}`, title: "REJECT" }];
+    planMsg = "₹300 for 3 months (Interest Only)";
+    buttons = [{ id: `ADMIN_APPROVE_1_3MO_${profileId}_${userPhone}`, title: "APPROVE ₹300" }, { id: `ADMIN_REJECT_${profileId}_${userPhone}`, title: "REJECT" }];
   } else if (planType === "PLAN_1_YEAR") {
-    planMsg = "₹1000 for 1 year";
-    buttons = [{ id: `ADMIN_APPROVE_1_YEAR_${profileId}_${userPhone}`, title: "APPROVE 1" }, { id: `ADMIN_REJECT_${profileId}_${userPhone}`, title: "REJECT" }];
+    planMsg = "₹1000 for 1 year (Interest Only)";
+    buttons = [{ id: `ADMIN_APPROVE_1_YEAR_${profileId}_${userPhone}`, title: "APPROVE ₹1000" }, { id: `ADMIN_REJECT_${profileId}_${userPhone}`, title: "REJECT" }];
   } else if (planType === "PLAN_2_YEAR") {
-    planMsg = "₹2000 for 1 year";
-    buttons = [{ id: `ADMIN_APPROVE_2_YEAR_${profileId}_${userPhone}`, title: "APPROVE 2" }, { id: `ADMIN_REJECT_${profileId}_${userPhone}`, title: "REJECT" }];
+    planMsg = "₹2000 for 1 year (Full Access)";
+    buttons = [{ id: `ADMIN_APPROVE_2_YEAR_${profileId}_${userPhone}`, title: "APPROVE ₹2000" }, { id: `ADMIN_REJECT_${profileId}_${userPhone}`, title: "REJECT" }];
   }
-  await sendText(ADMIN_PHONE, `💰 Payment Received\nUser: ${userPhone}\nProfile: ${profileId}\n${planMsg}`);
-  await sendButtons(ADMIN_PHONE, `Action for ${profileId}`, buttons);
+  await sendText(ADMIN_PHONE, `💰 *Payment Received*\n\n👤 User: ${userPhone}\n🆔 Profile: ${profileId}\n💳 Plan: ${planMsg}`);
+  await sendButtons(ADMIN_PHONE, `📋 *Action for ${profileId}*`, buttons);
 }
 
 // ===================== Search Helpers =====================
@@ -566,53 +534,64 @@ async function showProfileCard(to, profile, temp) {
   temp.currentViewingProfile = profile;
   await setState(to, "SEARCH_RESULTS_VIEW", temp);
   
-  // THREE BUTTONS: SELECT, FILTER SEARCH, NEXT
   await sendButtons(to, ACTION_BUTTONS_MSG, [
     { id: "SELECT_ACTION", title: "🎯 SELECT" },
-    { id: "FILTER_SEARCH", title: "🔧 FILTER" },
     { id: "NEXT", title: "⏩ NEXT" },
   ]);
 }
 
-async function sendPaymentRequiredMessage(to) {
-  await sendText(to, PAYMENT_REQUIRED_MSG);
+async function sendNotRegisteredMessage(to) {
+  await sendText(to, `❌ *Registration Required*\n*पंजीकरण आवश्यक है*\n\n📝 Please JOIN and create your profile to access this feature.\nकृपया इस सुविधा का उपयोग करने के लिए JOIN करें और अपनी प्रोफाइल बनाएं।`);
   await sendButtons(to, "👇 *Choose option* / *एक विकल्प चुनें* 👇", [
-    { id: "JOIN", title: "📝 JOIN" },
+    { id: "JOIN", title: "📝 JOIN NOW" },
     { id: "SEARCH", title: "🔍 SEARCH" },
   ]);
 }
 
 // ===================== handleDirectCommand =====================
 async function handleDirectCommand(from, cmd, args, temp, st) {
+  // MYPROFILES - View user's profiles
   if (cmd === "MYPROFILES") {
     const profiles = await findProfilesByPhone(from);
     if (!profiles.length) {
-      await sendText(from, WELCOME_MSG);
+      await sendText(from, "📝 *You don't have any profiles yet.*\n*आपकी अभी तक कोई प्रोफाइल नहीं है।*\n\nUse JOIN to create one!\nJOIN करके प्रोफाइल बनाएं!");
       await sendJoinSearchStopButtons(from);
       return;
     }
-    let msg = "📋 *Your profiles / आपकी प्रोफाइल्स*\n\n";
+    let msg = "📋 *Your Profiles / आपकी प्रोफाइल्स*\n\n";
     for (const p of profiles) {
-      msg += `• ${p.profile_id} (${p.approved_1 === "APPROVED" ? "✅ ACTIVE" : "⏳ PENDING"})\n`;
+      const status = p.approved_1 === "APPROVED" ? "✅ ACTIVE" : "⏳ PENDING";
+      msg += `• ${p.profile_id} - ${status}\n`;
     }
     await sendText(from, msg);
-    await sendButtons(from, "Select profile / प्रोफाइल चुनें:", profiles.slice(0, 5).map(p => ({ id: `MYPROFILE_${p.profile_id}`, title: p.profile_id })));
+    await sendButtons(from, "Select profile / प्रोफाइल चुनें:", profiles.slice(0, 3).map(p => ({ id: `MYPROFILE_${p.profile_id}`, title: p.profile_id })));
     return;
   }
 
+  // DELETE - Delete user's profile
   if (cmd === "DELETE") {
     const profileId = normalizeProfileId(args[0]);
-    if (!profileId) { await sendText(from, "Use: DELETE MH-XXXX\nउपयोग: DELETE MH-XXXX"); return; }
+    if (!profileId) { 
+      await sendText(from, "❌ *Usage / उपयोग:* DELETE MH-XXXX"); 
+      return; 
+    }
     const prof = await findProfileById(profileId);
-    if (!prof) { await sendText(from, "Profile not found.\nप्रोफाइल नहीं मिली।"); return; }
-    if (prof.phone !== from) { await sendText(from, "You can only delete your own profile.\nआप सिर्फ अपनी प्रोफाइल delete कर सकते हैं।"); return; }
+    if (!prof) { 
+      await sendText(from, "❌ *Profile not found*\n*प्रोफाइल नहीं मिली*"); 
+      return; 
+    }
+    if (prof.phone !== from) { 
+      await sendText(from, "❌ *You can only delete your own profile*\n*आप सिर्फ अपनी प्रोफाइल delete कर सकते हैं*"); 
+      return; 
+    }
     await deleteProfileRow(prof.rowIndex);
     await setState(from, "", {});
-    await sendText(from, `✅ Deleted ${profileId}\n${profileId} delete हो गया।`);
+    await sendText(from, `✅ *Profile ${profileId} deleted successfully*\n*प्रोफाइल ${profileId} सफलतापूर्वक हटा दी गई*`);
     await sendJoinSearchStopButtons(from);
     return;
   }
 
+  // SEARCH - Start search flow
   if (cmd === "SEARCH") {
     await sendText(from, SEARCH_GENDER_MSG);
     await setState(from, "SEARCH_BRIDE_GROOM", {});
@@ -624,12 +603,13 @@ async function handleDirectCommand(from, cmd, args, temp, st) {
     return;
   }
 
+  // NEXT - Show next search result
   if (cmd === "NEXT") {
     const cacheId = temp.searchCacheId;
     const cache = global.searchCache?.get(cacheId);
     
     if (!cache || !cache.results || !cache.results.length) {
-      await sendText(from, "No active search. Type SEARCH to start.\nकोई active search नहीं। SEARCH टाइप करें।");
+      await sendText(from, "❌ *No active search*\n*कोई सक्रिय खोज नहीं*\n\nType SEARCH to start\nSEARCH टाइप करें।");
       return;
     }
     
@@ -646,30 +626,20 @@ async function handleDirectCommand(from, cmd, args, temp, st) {
     return;
   }
 
+  // DETAILS - Show detailed profile
   if (cmd === "DETAILS") {
     const profileId = normalizeProfileId(args[0]);
-    if (!profileId) { await sendText(from, "Use: DETAILS MH-XXXX"); return; }
+    if (!profileId) { 
+      await sendText(from, "❌ *Usage / उपयोग:* DETAILS MH-XXXX"); 
+      return; 
+    }
     const target = await findProfileById(profileId);
-    if (!target) { await sendText(from, "Profile not found.\nप्रोफाइल नहीं मिली।"); return; }
+    if (!target) { 
+      await sendText(from, "❌ *Profile not found*\n*प्रोफाइल नहीं मिली*"); 
+      return; 
+    }
     const age = calcAgeFromDobDDMMYYYY(target.date_of_birth);
-    const msg = `📄 *Profile Details / प्रोफाइल जानकारी*
-
-🆔 ID: ${target.profile_id}
-⚥ Gender / लिंग: ${target.gender}
-💍 Marital Status / वैवाहिक स्थिति: ${target.marital_status || "NA"}
-🎂 Age / उम्र: ${age || "NA"}
-
-🏠 Native / मूल स्थान: ${target.native_place || "NA"}, ${target.district || "NA"}
-🏢 Work / कार्य स्थल: ${target.work_city || "NA"}, ${target.work_district || "NA"}
-
-🕉️ Religion / धर्म: ${target.religion || "NA"}
-👥 Caste / जात: ${target.caste || "NA"}
-📏 Height / ऊंचाई: ${target.height || "NA"}
-
-🎓 Education / शिक्षा: ${target.education || "NA"}
-💼 Job Type / नौकरी प्रकार: ${target.job || "NA"}
-📌 Job Title / पद: ${target.job_title || "NA"}
-💰 Income / आय: ${target.income_annual || "NA"}`;
+    const msg = `📄 *Profile Details / प्रोफाइल जानकारी*\n\n🆔 ID: ${target.profile_id}\n⚥ Gender / लिंग: ${target.gender}\n💍 Marital Status / वैवाहिक स्थिति: ${target.marital_status || "NA"}\n🎂 Age / उम्र: ${age || "NA"}\n\n🏠 Native / मूल स्थान: ${target.native_place || "NA"}, ${target.district || "NA"}\n🏢 Work / कार्य स्थल: ${target.work_city || "NA"}, ${target.work_district || "NA"}\n\n🕉️ Religion / धर्म: ${target.religion || "NA"}\n👥 Caste / जात: ${target.caste || "NA"}\n📏 Height / ऊंचाई: ${target.height || "NA"}\n\n🎓 Education / शिक्षा: ${target.education || "NA"}\n💼 Job Type / नौकरी प्रकार: ${target.job || "NA"}\n📌 Job Title / पद: ${target.job_title || "NA"}\n💰 Income / आय: ${target.income_annual || "NA"}`;
     
     if (target.photo_url) {
       await sendImageByLink(from, target.photo_url, msg);
@@ -679,49 +649,128 @@ async function handleDirectCommand(from, cmd, args, temp, st) {
     return;
   }
 
+  // INTEREST - Send interest to a profile
   if (cmd === "INTEREST") {
     const profileId = normalizeProfileId(args[0]);
-    if (!profileId) { await sendText(from, "Use: INTEREST MH-XXXX"); return; }
+    if (!profileId) { 
+      await sendText(from, "❌ *Usage / उपयोग:* INTEREST MH-XXXX"); 
+      return; 
+    }
+    
+    // Check if user is registered
     const userProfiles = await findProfilesByPhone(from);
-    if (!userProfiles.length) { await sendPaymentRequiredMessage(from); return; }
+    if (!userProfiles.length) { 
+      await sendText(from, `❌ *Registration Required*\n*पंजीकरण आवश्यक है*\n\n📝 Please JOIN to send interest to profiles.\nकृपया रिश्ते भेजने के लिए JOIN करें।\n\n${PAYMENT_PLANS_MSG}`);
+      await sendButtons(from, "👇 *Choose option* / *एक विकल्प चुनें* 👇", [
+        { id: "JOIN", title: "📝 JOIN" },
+        { id: "SEARCH", title: "🔍 SEARCH" },
+      ]);
+      return; 
+    }
+    
     const userProfile = userProfiles[0];
     const { canSendInterest } = getUserPaymentStatus(userProfile);
-    if (!canSendInterest) { await sendPaymentRequiredMessage(from); return; }
-    if (userProfile.profile_id === profileId) { await sendText(from, "Cannot send interest to yourself.\nअपने आप को interest नहीं भेज सकते।"); return; }
+    
+    // Check if user has active payment
+    if (!canSendInterest) { 
+      await sendText(from, `💰 *Premium Feature*\n*प्रीमियम सुविधा*\n\n⚠️ You need an active plan to send interest.\nरिश्ते भेजने के लिए सक्रिय प्लान आवश्यक है।\n\n${PAYMENT_PLANS_MSG}`);
+      await sendButtons(from, "👇 *Choose option* / *एक विकल्प चुनें* 👇", [
+        { id: "MAKE_PAYMENT", title: "💳 MAKE PAYMENT" },
+        { id: "SEARCH", title: "🔍 SEARCH" },
+      ]);
+      return; 
+    }
+    
+    if (userProfile.profile_id === profileId) { 
+      await sendText(from, "❌ *Cannot send interest to yourself*\n*अपने आप को interest नहीं भेज सकते*"); 
+      return; 
+    }
+    
     const target = await findProfileById(profileId);
-    if (!target) { await sendText(from, "Profile not found."); return; }
-    const existing = await findInterestRequest({ from_profile_id: userProfile.profile_id, to_profile_id: target.profile_id });
-    if (existing && existing.status === "SENT") { await sendText(from, "Interest already sent.\nInterest पहले ही भेजा जा चुका है।"); return; }
-    await appendRequest({ from_profile_id: userProfile.profile_id, to_profile_id: target.profile_id, status: "SENT", type: "INTEREST", viewer_phone: from });
-    await sendButtons(target.phone, `💌 *Interest received from ${userProfile.profile_id}*`, [
-      { id: `ACCEPT_${userProfile.profile_id}`, title: "✅ ACCEPT" },
-      { id: `REJECT_${userProfile.profile_id}`, title: "❌ REJECT" },
-    ]);
-    await sendText(from, `✅ Interest sent to ${profileId}\nInterest भेज दिया गया।`);
+    if (!target) { 
+      await sendText(from, "❌ *Profile not found*\n*प्रोफाइल नहीं मिली*"); 
+      return; 
+    }
+    
+    const existing = await findInterestRequest({ 
+      from_profile_id: userProfile.profile_id, 
+      to_profile_id: target.profile_id 
+    });
+    
+    if (existing && existing.status === "SENT") { 
+      await sendText(from, "ℹ️ *Interest already sent*\n*Interest पहले ही भेजा जा चुका है*"); 
+      return; 
+    }
+    
+    // Send interest
+    await appendRequest({ 
+      from_profile_id: userProfile.profile_id, 
+      to_profile_id: target.profile_id, 
+      status: "SENT", 
+      type: "INTEREST", 
+      viewer_phone: from 
+    });
+    
+    // Notify the target user
+    await sendButtons(target.phone, 
+      `💌 *New Interest!*\n*नया रिश्ता!*\n\nSomeone is interested in your profile!\nकिसी ने आपकी प्रोफाइल में रुचि दिखाई है!\n\nFrom / से: ${userProfile.profile_id}`, 
+      [
+        { id: `ACCEPT_${userProfile.profile_id}`, title: "✅ ACCEPT" },
+        { id: `REJECT_${userProfile.profile_id}`, title: "❌ REJECT" },
+      ]
+    );
+    
+    await sendText(from, `✅ *Interest sent successfully!*\n*रिश्ता सफलतापूर्वक भेजा गया!*\n\nTo / को: ${profileId}\n\n💫 You'll be notified if they respond.\nउनके जवाब देने पर आपको सूचित किया जाएगा।`);
     return;
   }
 
+  // ACCEPT or REJECT interest
   if (cmd === "ACCEPT" || cmd === "REJECT") {
     const interestedProfileId = normalizeProfileId(args[0]);
-    if (!interestedProfileId) { await sendText(from, "Use: ACCEPT MH-XXXX or REJECT MH-XXXX"); return; }
+    if (!interestedProfileId) { 
+      await sendText(from, "❌ *Usage / उपयोग:* ACCEPT MH-XXXX or REJECT MH-XXXX"); 
+      return; 
+    }
+    
     const receiverProfiles = await findProfilesByPhone(from);
-    if (!receiverProfiles.length) { await sendText(from, "No profile found.\nकोई प्रोफाइल नहीं मिली।"); return; }
+    if (!receiverProfiles.length) { 
+      await sendText(from, "❌ *No profile found*\n*कोई प्रोफाइल नहीं मिली*\n\nPlease JOIN first.\nकृपया पहले JOIN करें।"); 
+      return; 
+    }
+    
     const receiverActive = receiverProfiles[0];
-    const existing = await findInterestRequest({ from_profile_id: interestedProfileId, to_profile_id: receiverActive.profile_id });
-    if (!existing || existing.status !== "SENT") { await sendText(from, "No pending interest.\nकोई pending interest नहीं।"); return; }
+    const existing = await findInterestRequest({ 
+      from_profile_id: interestedProfileId, 
+      to_profile_id: receiverActive.profile_id 
+    });
+    
+    if (!existing || existing.status !== "SENT") { 
+      await sendText(from, "ℹ️ *No pending interest found*\n*कोई लंबित रिश्ता नहीं मिला*"); 
+      return; 
+    }
+    
     const senderProfile = await findProfileById(interestedProfileId);
+    
     if (cmd === "REJECT") {
-      await sendText(from, `❌ Rejected interest from ${interestedProfileId}`);
-      if (senderProfile) await sendText(senderProfile.phone, `❌ Your interest was rejected by ${receiverActive.profile_id}\nआपका interest reject कर दिया गया।`);
+      await sendText(from, `❌ *Interest rejected*\n*रिश्ता अस्वीकृत*\n\nFrom: ${interestedProfileId}`);
+      if (senderProfile) {
+        await sendText(senderProfile.phone, `❌ *Interest Declined*\n*रिश्ता अस्वीकृत*\n\nYour interest was not accepted by ${receiverActive.profile_id}\nआपका रिश्ता ${receiverActive.profile_id} द्वारा स्वीकार नहीं किया गया।\n\n💫 Keep searching! More matches await!\nखोजते रहें! और भी मैच आपका इंतजार कर रहे हैं!`);
+      }
       return;
     }
-    await sendText(from, `✅ Accepted interest from ${interestedProfileId}`);
+    
+    // ACCEPT
+    await sendText(from, `✅ *Interest Accepted!*\n*रिश्ता स्वीकृत!*\n\nFrom: ${interestedProfileId}\n\n💫 Connecting you both...\nआप दोनों को जोड़ा जा रहा है...`);
+    
     const { canViewContact } = getUserPaymentStatus(receiverActive);
+    
     if (canViewContact && senderProfile) {
-      await sendText(from, `📞 *Contact Shared* / *संपर्क साझा किया*\n\nProfile: ${interestedProfileId}\nPhone: ${senderProfile.phone}`);
-      await sendText(senderProfile.phone, `🎉 *Your interest was accepted!* 🎉\n\n📞 *Contact Shared*:\nProfile: ${receiverActive.profile_id}\nPhone: ${receiverActive.phone}`);
+      // Share contacts both ways
+      await sendText(from, `📞 *Contact Shared / संपर्क साझा*\n\n👤 Profile: ${interestedProfileId}\n📱 Phone: ${senderProfile.phone}\n👤 Name: ${senderProfile.name || "NA"} ${senderProfile.surname || "NA"}`);
+      
+      await sendText(senderProfile.phone, `🎉 *Great News!*\n*शानदार खबर!* 🎉\n\n✅ Your interest was accepted by ${receiverActive.profile_id}!\nआपका रिश्ता ${receiverActive.profile_id} ने स्वीकार कर लिया!\n\n📞 *Contact Shared / संपर्क साझा:*\n👤 Profile: ${receiverActive.profile_id}\n📱 Phone: ${receiverActive.phone}\n👤 Name: ${receiverActive.name || "NA"} ${receiverActive.surname || "NA"}\n\n💝 *Best wishes from Vivaho!*\n*Vivaho की ओर से शुभकामनाएं!* 💝`);
     } else {
-      await sendText(senderProfile.phone, `✅ *Your interest was accepted!*\nThe user will contact you soon.\n*आपका interest स्वीकार कर लिया गया!*\nउपयोगकर्ता जल्द ही आपसे संपर्क करेगा।`);
+      await sendText(senderProfile.phone, `🎉 *Great News!*\n*शानदार खबर!* 🎉\n\n✅ Your interest was accepted by ${receiverActive.profile_id}!\nआपका रिश्ता ${receiverActive.profile_id} ने स्वीकार कर लिया!\n\n📞 They will contact you soon.\nवे जल्द ही आपसे संपर्क करेंगे।\n\n💝 *Best wishes from Vivaho!*\n*Vivaho की ओर से शुभकामनाएं!* 💝`);
     }
     return;
   }
@@ -744,6 +793,7 @@ app.post("/webhook", async (req, res) => {
     const value = req.body?.entry?.[0]?.changes?.[0]?.value;
     const msg = value?.messages?.[0];
     if (!msg) return;
+    
     const from = normalizePhone(msg.from);
     const msgType = msg.type;
     const text = (msg.text?.body || "").trim();
@@ -752,7 +802,7 @@ app.post("/webhook", async (req, res) => {
     const temp = safeJsonParse(st.temp_data || "{}", {});
     let effectiveInput = text || interactiveId || "";
 
-    // Clean old search cache (1% chance on each request)
+    // Clean old search cache periodically
     if (Math.random() < 0.01) {
       for (const [key, val] of global.searchCache.entries()) {
         if (Date.now() - val.timestamp > 60 * 60 * 1000) {
@@ -761,16 +811,18 @@ app.post("/webhook", async (req, res) => {
       }
     }
 
-    // Handle button commands
+    // ===== Process button interactions =====
+    const isButtonClick = !!interactiveId;
+    
     if (interactiveId.startsWith("ACCEPT_")) effectiveInput = `ACCEPT ${interactiveId.replace("ACCEPT_", "")}`;
     else if (interactiveId.startsWith("REJECT_")) effectiveInput = `REJECT ${interactiveId.replace("REJECT_", "")}`;
     else if (interactiveId === "SELECT_ACTION") effectiveInput = "SELECT_ACTION";
-    else if (interactiveId === "FILTER_SEARCH") effectiveInput = "FILTER_SEARCH";
     else if (interactiveId === "SEARCH_BRIDE" || interactiveId === "SEARCH_GROOM") effectiveInput = interactiveId;
     else if (interactiveId === "MAKE_PAYMENT") effectiveInput = "MAKE_PAYMENT";
     else if (interactiveId === "SEND_INTEREST") effectiveInput = "SEND_INTEREST";
     else if (interactiveId === "VIEW_CONTACT") effectiveInput = "VIEW_CONTACT";
     else if (interactiveId === "NEXT") effectiveInput = "NEXT";
+    else if (interactiveId === "FILTER_SEARCH") effectiveInput = "FILTER_SEARCH";
     else if (interactiveId.startsWith("ADMIN_APPROVE_1_3MO_")) {
       const parts = interactiveId.replace("ADMIN_APPROVE_1_3MO_", "").split("_");
       effectiveInput = `ADMIN_APPROVE_1_3MO ${parts[0]} ${parts[1]}`;
@@ -793,14 +845,27 @@ app.post("/webhook", async (req, res) => {
         ]);
       }
       return;
+    } else if (interactiveId.startsWith("DETAILS_")) {
+      effectiveInput = `DETAILS ${interactiveId.replace("DETAILS_", "")}`;
     } else if (interactiveId.startsWith("SELF_DELETE_")) {
       effectiveInput = `DELETE ${interactiveId.replace("SELF_DELETE_", "")}`;
     }
 
     const { cmd, args } = parseCommand(effectiveInput);
 
-    // ===================== MAIN MENU HANDLER (Prevents Loops) =====================
-    if (!st.step || cmd === "VIVAHO_HOME" || cmd === "MENU" || cmd === "HOME" || isGreeting(text)) {
+    // ===================== MAIN MENU HANDLER =====================
+    // Only show welcome for text greetings, not button clicks
+    const isGreetingText = isGreeting(text) && !isButtonClick;
+    
+    if (isGreetingText && !st.step) {
+      await sendText(from, WELCOME_MSG);
+      await sendJoinSearchStopButtons(from);
+      await setState(from, "", {});
+      return;
+    }
+    
+    // Show welcome if no state and no command/button
+    if (!st.step && !cmd && !interactiveId && !isButtonClick) {
       await sendText(from, WELCOME_MSG);
       await sendJoinSearchStopButtons(from);
       await setState(from, "", {});
@@ -811,11 +876,11 @@ app.post("/webhook", async (req, res) => {
     if (cmd === "JOIN") {
       const existing = await findProfilesByPhone(from);
       if (existing.length >= MAX_PROFILES_PER_PHONE) {
-        await sendText(from, `⚠️ You already have ${existing.length} profile (max ${MAX_PROFILES_PER_PHONE}).\nआपके पास पहले से ${existing.length} प्रोफाइल है।`);
+        await sendText(from, `⚠️ *Profile Limit Reached*\n*प्रोफाइल सीमा पूरी*\n\nYou already have ${existing.length} profile(s). Maximum ${MAX_PROFILES_PER_PHONE} allowed per number.\nआपके पास पहले से ${existing.length} प्रोफाइल है। प्रति नंबर अधिकतम ${MAX_PROFILES_PER_PHONE} की अनुमति है।`);
         return;
       }
       await setState(from, "ASK_NAME", {});
-      await sendText(from, "📝 *Enter your name* / *अपना नाम लिखें*:");
+      await sendText(from, "📝 *Let's create your profile!*\n*आइए आपकी प्रोफाइल बनाएं!*\n\nFirst, enter your name / पहले अपना नाम लिखें:");
       return;
     }
 
@@ -826,7 +891,7 @@ app.post("/webhook", async (req, res) => {
 
     if (cmd === "STOP") {
       await setState(from, "", {});
-      await sendText(from, "✅ *Process stopped* / *प्रक्रिया बंद कर दी गई*");
+      await sendText(from, "✅ *Process stopped*\n*प्रक्रिया बंद*\n\nAll your data is saved.\nआपका सारा डेटा सुरक्षित है।");
       await sendJoinSearchStopButtons(from);
       return;
     }
@@ -862,7 +927,7 @@ app.post("/webhook", async (req, res) => {
     }
 
     // ===================== SEARCH BRIDE/GROOM =====================
-    if (effectiveInput === "SEARCH_BRIDE" || effectiveInput === "SEARCH_GROOM") {
+    if (st.step === "SEARCH_BRIDE_GROOM" && (effectiveInput === "SEARCH_BRIDE" || effectiveInput === "SEARCH_GROOM")) {
       await sendText(from, SEARCHING_MSG);
       
       try {
@@ -870,7 +935,11 @@ app.post("/webhook", async (req, res) => {
         const allVisible = await getAllVisibleProfiles();
         
         if (allVisible.length === 0) {
-          await sendText(from, "❌ No profiles found in database.\nडेटाबेस में कोई प्रोफाइल नहीं मिली।");
+          await sendText(from, "❌ *No profiles found*\n*कोई प्रोफाइल नहीं मिली*\n\nBe the first to JOIN!\nसबसे पहले JOIN करें!");
+          await sendButtons(from, "👇 *Choose option* / *एक विकल्प चुनें* 👇", [
+            { id: "JOIN", title: "📝 JOIN" },
+            { id: "SEARCH", title: "🔄 RETRY" },
+          ]);
           return;
         }
         
@@ -883,12 +952,15 @@ app.post("/webhook", async (req, res) => {
         
         if (results.length === 0) {
           await sendText(from, NO_MATCHES_MSG);
-          await sendButtons(from, "👇 *What would you like to do?*", [
-            { id: "SEARCH", title: "🔍 SEARCH AGAIN" },
-            { id: "JOIN", title: "📝 CREATE PROFILE" },
+          await sendButtons(from, "👇 *What would you like to do?*\n*आप क्या करना चाहेंगे?*", [
+            { id: "MAKE_PAYMENT", title: "💳 MAKE PAYMENT" },
+            { id: "JOIN", title: "📝 JOIN" },
           ]);
           return;
         }
+        
+        // Shuffle results for variety
+        results.sort(() => Math.random() - 0.5);
         
         const cacheId = `${from}_${Date.now()}`;
         global.searchCache.set(cacheId, { results, index: 0, timestamp: Date.now() });
@@ -900,8 +972,8 @@ app.post("/webhook", async (req, res) => {
         await showProfileCard(from, profile, temp);
         
       } catch (err) {
-        await sendText(from, `❌ ERROR: ${err.message || err.toString()}`);
         console.error("Search error:", err);
+        await sendText(from, "❌ *Something went wrong*\n*कुछ गड़बड़ हुई*\n\nPlease try again later.\nकृपया बाद में पुनः प्रयास करें।");
       }
       return;
     }
@@ -909,38 +981,72 @@ app.post("/webhook", async (req, res) => {
     // ===================== SELECT ACTION (SEND INTEREST / VIEW CONTACT) =====================
     if (effectiveInput === "SELECT_ACTION") {
       if (!temp.currentViewingProfile) {
-        await sendText(from, "No profile selected. Start a new search.\nकोई प्रोफाइल चुनी नहीं गई। नई खोज शुरू करें।");
+        await sendText(from, "ℹ️ *No profile selected*\n*कोई प्रोफाइल चुनी नहीं गई*\n\nStart a new search.\nनई खोज शुरू करें।");
         return;
       }
-      await sendButtons(from, `💖 *Actions for ${temp.currentViewingProfile.profile_id}*`, [
-        { id: "SEND_INTEREST", title: "💌 SEND INTEREST" },
-        { id: "VIEW_CONTACT", title: "📞 VIEW CONTACT" },
-      ]);
+      
+      // Check if user has a profile
+      const userProfiles = await findProfilesByPhone(from);
+      if (!userProfiles.length) {
+        await sendNotRegisteredMessage(to);
+        return;
+      }
+      
+      const { canSendInterest, canViewContact } = getUserPaymentStatus(userProfiles[0]);
+      
+      // Build appropriate buttons based on payment status
+      const buttons = [];
+      if (canSendInterest) buttons.push({ id: "SEND_INTEREST", title: "💌 SEND INTEREST" });
+      if (canViewContact) buttons.push({ id: "VIEW_CONTACT", title: "📞 VIEW CONTACT" });
+      buttons.push({ id: "NEXT", title: "⏩ SKIP" });
+      
+      if (!canSendInterest && !canViewContact) {
+        await sendText(from, `💰 *Activate Premium*\n*प्रीमियम सक्रिय करें*\n\n${PAYMENT_PLANS_MSG}`);
+        await sendButtons(from, "👇 *Choose option* / *एक विकल्प चुनें* 👇", [
+          { id: "MAKE_PAYMENT", title: "💳 MAKE PAYMENT" },
+          { id: "NEXT", title: "⏩ NEXT" },
+        ]);
+        return;
+      }
+      
+      await sendButtons(from, `💖 *Actions for ${temp.currentViewingProfile.profile_id}*`, buttons);
       return;
     }
 
     if (effectiveInput === "SEND_INTEREST") {
       if (!temp.currentViewingProfile) return;
+      
+      const userProfiles = await findProfilesByPhone(from);
+      if (!userProfiles.length) {
+        await sendNotRegisteredMessage(from);
+        return;
+      }
+      
       await handleDirectCommand(from, "INTEREST", [temp.currentViewingProfile.profile_id], temp, st);
       return;
     }
 
     if (effectiveInput === "VIEW_CONTACT") {
       if (!temp.currentViewingProfile) return;
+      
       const userProfiles = await findProfilesByPhone(from);
-      if (!userProfiles.length) { await sendPaymentRequiredMessage(from); return; }
+      if (!userProfiles.length) {
+        await sendNotRegisteredMessage(from);
+        return;
+      }
+      
       const { canViewContact } = getUserPaymentStatus(userProfiles[0]);
-      if (!canViewContact) { await sendPaymentRequiredMessage(from); return; }
-      await sendText(from, `📞 *Contact / संपर्क:* ${temp.currentViewingProfile.phone}`);
-      return;
-    }
-
-    // ===================== FILTER SEARCH =====================
-    if (effectiveInput === "FILTER_SEARCH") {
-      await sendText(from, "🔧 *Advanced filters coming soon!*\n*उन्नत फ़िल्टर जल्द आ रहे हैं!*\n\nUsing basic search for now.\nअभी के लिए बुनियादी खोज का उपयोग कर रहे हैं।");
-      await sendButtons(from, "👇 *Start new search*", [
-        { id: "SEARCH", title: "🔍 SEARCH" },
-      ]);
+      if (!canViewContact) {
+        await sendText(from, `🔒 *Premium Feature*\n*प्रीमियम सुविधा*\n\n📱 View Contact requires ₹2000 plan.\nसंपर्क देखने के लिए ₹2000 प्लान आवश्यक है।`);
+        await sendButtons(from, "👇 *Choose option* / *एक विकल्प चुनें* 👇", [
+          { id: "MAKE_PAYMENT", title: "💳 UPGRADE" },
+          { id: "NEXT", title: "⏩ NEXT" },
+        ]);
+        return;
+      }
+      
+      const target = temp.currentViewingProfile;
+      await sendText(from, `📞 *Contact Details / संपर्क विवरण*\n\n👤 Name: ${target.name || "NA"} ${target.surname || "NA"}\n🆔 Profile: ${target.profile_id}\n📱 Phone: ${target.phone}\n\n💝 *Best wishes from Vivaho!*\n*Vivaho की ओर से शुभकामनाएं!*`);
       return;
     }
 
@@ -948,239 +1054,394 @@ app.post("/webhook", async (req, res) => {
     if (effectiveInput === "MAKE_PAYMENT") {
       const userProfiles = await findProfilesByPhone(from);
       if (!userProfiles.length) {
-        await sendText(from, "📝 *Create profile first using JOIN*\n*पहले JOIN करके प्रोफाइल बनाएं*");
+        await sendText(from, "📝 *Please create profile first*\n*कृपया पहले प्रोफाइल बनाएं*\n\nUse JOIN to register.\nJOIN करके रजिस्टर करें।");
         return;
       }
       await setState(from, "PAYMENT_SELECT_PLAN", temp);
-      await sendButtons(from, "💰 *Choose your plan* / *अपना प्लान चुनें* 💰", [
-        { id: "PLAN_1_3MO", title: "₹300 (3mo)" },
-        { id: "PLAN_1_YEAR", title: "₹1000 (1yr)" },
-        { id: "PLAN_2_YEAR", title: "₹2000 (1yr)" },
+      await sendText(from, PAYMENT_PLANS_MSG);
+      await sendButtons(from, "👇 *Select your plan* / *अपना प्लान चुनें* 👇", [
+        { id: "PLAN_1_3MO", title: "💰 ₹300 (3mo)" },
+        { id: "PLAN_1_YEAR", title: "💝 ₹1000 (1yr)" },
+        { id: "PLAN_2_YEAR", title: "💎 ₹2000 (1yr)" },
       ]);
       return;
     }
 
-    if (effectiveInput === "PLAN_1_3MO" || effectiveInput === "PLAN_1_YEAR" || effectiveInput === "PLAN_2_YEAR") {
-      temp.selectedPlan = effectiveInput;
-      await setState(from, "PAYMENT_QR", temp);
-      let amount = effectiveInput === "PLAN_1_3MO" ? "₹300" : (effectiveInput === "PLAN_1_YEAR" ? "₹1000" : "₹2000");
-      await sendText(from, `💰 *Amount / राशि:* ${amount}\n📱 *UPI ID:* ${UPI_ID}\n\n📸 *Scan QR code to pay* / *भुगतान के लिए QR कोड स्कैन करें*`);
-      if (QR_IMAGE_URL) await sendImageByLink(from, QR_IMAGE_URL, "Scan to Pay | भुगतान करें");
-      await sendButtons(from, "✅ *After payment, click below*", [
-        { id: "PAYMENT_DONE", title: "✅ I HAVE PAID" },
-        { id: "CANCEL", title: "❌ CANCEL" },
-      ]);
-      return;
+    if (st.step === "PAYMENT_SELECT_PLAN") {
+      if (effectiveInput === "PLAN_1_3MO" || effectiveInput === "PLAN_1_YEAR" || effectiveInput === "PLAN_2_YEAR") {
+        temp.selectedPlan = effectiveInput;
+        await setState(from, "PAYMENT_QR", temp);
+        
+        let amount = effectiveInput === "PLAN_1_3MO" ? "₹300" : (effectiveInput === "PLAN_1_YEAR" ? "₹1000" : "₹2000");
+        let planName = effectiveInput === "PLAN_1_3MO" ? "3 Months - Send Interest" : effectiveInput === "PLAN_1_YEAR" ? "1 Year - Send Interest" : "1 Year - Full Access";
+        
+        const paymentMsg = `💳 *Payment Details / भुगतान विवरण*\n\n📋 Plan: ${planName}\n💵 Amount / राशि: ${amount}\n📱 UPI ID: ${UPI_ID}\n\n📸 *Scan QR code below to pay*\n*भुगतान के लिए नीचे QR कोड स्कैन करें*`;
+        
+        await sendText(from, paymentMsg);
+        
+        if (QR_IMAGE_URL) {
+          await sendImageByLink(from, QR_IMAGE_URL, `📱 Scan to Pay ${amount} | भुगतान करें ${amount}`);
+        } else {
+          await sendText(from, "⚠️ QR code image not available. Please use UPI ID above.\nQR कोड उपलब्ध नहीं है। कृपया ऊपर दी गई UPI ID का उपयोग करें।");
+        }
+        
+        await sendButtons(from, "✅ *After payment, click below*\n*भुगतान के बाद नीचे क्लिक करें*", [
+          { id: "PAYMENT_DONE", title: "✅ PAID" },
+          { id: "CANCEL", title: "❌ CANCEL" },
+        ]);
+        return;
+      } else {
+        await sendText(from, "❌ Please select a valid plan.\nकृपया एक मान्य प्लान चुनें।");
+        return;
+      }
     }
 
-    if (effectiveInput === "PAYMENT_DONE") {
-      const userProfiles = await findProfilesByPhone(from);
-      if (!userProfiles.length) return;
-      await notifyAdminPayment(from, userProfiles[0].profile_id, temp.selectedPlan || "PLAN_1_YEAR");
-      await sendText(from, "✅ *Payment notification sent to admin!*\n*भुगतान की सूचना admin को भेज दी गई है!*\n\nYou will be approved shortly.\nजल्द ही आपको approve कर दिया जाएगा।");
-      await setState(from, "", {});
-      await sendJoinSearchStopButtons(from);
-      return;
-    }
-
-    if (effectiveInput === "CANCEL") {
-      await setState(from, "", {});
-      await sendJoinSearchStopButtons(from);
-      return;
+    if (st.step === "PAYMENT_QR") {
+      if (effectiveInput === "PAYMENT_DONE") {
+        const userProfiles = await findProfilesByPhone(from);
+        if (!userProfiles.length) {
+          await sendText(from, "❌ Profile not found. Please JOIN first.\nप्रोफाइल नहीं मिली। पहले JOIN करें।");
+          return;
+        }
+        
+        await notifyAdminPayment(from, userProfiles[0].profile_id, temp.selectedPlan || "PLAN_1_YEAR");
+        
+        await sendText(from, `✅ *Payment Confirmation Sent!*\n*भुगतान पुष्टि भेज दी गई!*\n\n⏳ Your payment is being verified by our team.\nआपका भुगतान हमारी टीम द्वारा सत्यापित किया जा रहा है।\n\n📞 Usually approved within 24 hours.\nआमतौर पर 24 घंटे के भीतर स्वीकृत।\n\n💝 Thank you for choosing Vivaho!\nVivaho चुनने के लिए धन्यवाद!`);
+        
+        await setState(from, "", {});
+        await sendJoinSearchStopButtons(from);
+        return;
+      }
+      
+      if (effectiveInput === "CANCEL") {
+        await setState(from, "", {});
+        await sendText(from, "❌ *Payment cancelled*\n*भुगतान रद्द*\n\nYou can make payment anytime.\nआप कभी भी भुगतान कर सकते हैं।");
+        await sendJoinSearchStopButtons(from);
+        return;
+      }
     }
 
     // ===================== ADMIN PAYMENT APPROVAL =====================
     if (cmd === "ADMIN_APPROVE_1_3MO" || cmd === "ADMIN_APPROVE_1_YEAR" || cmd === "ADMIN_APPROVE_2_YEAR" || cmd === "ADMIN_REJECT") {
-      if (!isAdmin(from)) { await sendText(from, "❌ Only admin can approve.\nकेवल admin approve कर सकते हैं।"); return; }
+      if (!isAdmin(from)) { 
+        await sendText(from, "❌ *Admin access only*\n*केवल एडमिन की पहुंच*"); 
+        return; 
+      }
+      
       const profileId = args[0];
       const userPhone = args[1];
       const prof = await findProfileById(profileId);
-      if (!prof) { await sendText(from, "Profile not found."); return; }
+      
+      if (!prof) { 
+        await sendText(from, "❌ Profile not found."); 
+        return; 
+      }
+      
       if (cmd === "ADMIN_REJECT") {
-        await sendText(userPhone, "❌ *Payment verification failed*\n*भुगतान सत्यापन विफल*\n\nPlease contact admin.\nकृपया admin से संपर्क करें।");
-        await sendText(from, "Rejected");
+        await sendText(userPhone, `❌ *Payment Not Verified*\n*भुगतान सत्यापित नहीं*\n\nPlease ensure payment is completed correctly.\nकृपया सुनिश्चित करें कि भुगतान सही ढंग से पूरा हुआ है।\n\n📞 Contact support for help.\nसहायता के लिए संपर्क करें।`);
+        await sendText(from, `✅ Rejected payment for ${profileId}`);
         return;
       }
+      
+      let approvalMsg = "";
       if (cmd === "ADMIN_APPROVE_1_3MO") {
         await updateProfileApproval1(prof.rowIndex, "APPROVED", addMonths(nowISO(), 3));
-        await sendText(userPhone, "✅ *Payment verified!* 🎉\n\n✨ You can now SEND INTEREST to profiles! (₹300 - 3 months)\n✨ आप अब INTEREST भेज सकते हैं!");
+        approvalMsg = `✅ *Payment Verified!*\n*भुगतान सत्यापित!* 🎉\n\n💝 *₹300 Plan Activated - 3 Months*\n✨ You can now SEND INTEREST to profiles!\n✨ अब आप प्रोफाइल पर INTEREST भेज सकते हैं!`;
       } else if (cmd === "ADMIN_APPROVE_1_YEAR") {
         await updateProfileApproval1(prof.rowIndex, "APPROVED", addYears(nowISO(), 1));
-        await sendText(userPhone, "✅ *Payment verified!* 🎉\n\n✨ You can now SEND INTEREST to profiles! (₹1000 - 1 year)\n✨ आप अब INTEREST भेज सकते हैं!");
+        approvalMsg = `✅ *Payment Verified!*\n*भुगतान सत्यापित!* 🎉\n\n💝 *₹1000 Plan Activated - 1 Year*\n✨ You can now SEND INTEREST to profiles!\n✨ अब आप प्रोफाइल पर INTEREST भेज सकते हैं!`;
       } else if (cmd === "ADMIN_APPROVE_2_YEAR") {
         await updateProfileApproval1(prof.rowIndex, "APPROVED", addYears(nowISO(), 1));
         await updateProfileApproval2(prof.rowIndex, "APPROVED", addYears(nowISO(), 1));
-        await sendText(userPhone, "✅ *Payment verified!* 🎉\n\n✨ You can now SEND INTEREST and VIEW CONTACT DETAILS! (₹2000 - 1 year)\n✨ आप अब INTEREST भेज सकते हैं और CONTACT DETAILS देख सकते हैं!");
+        approvalMsg = `✅ *Payment Verified!*\n*भुगतान सत्यापित!* 🎉\n\n💎 *₹2000 Premium Plan Activated - 1 Year*\n✨ You can now SEND INTEREST + VIEW CONTACT DETAILS!\n✨ अब आप INTEREST भेज सकते हैं और CONTACT DETAILS देख सकते हैं!`;
       }
-      await sendText(userPhone, "💝 *Thank you for choosing Vivaho!*\n*Vivaho चुनने के लिए धन्यवाद!*");
+      
+      await sendText(userPhone, `${approvalMsg}\n\n💝 *Thank you for choosing Vivaho!*\n*Vivaho चुनने के लिए धन्यवाद!* 💝`);
       await sendText(from, `✅ Approved ${profileId} for ${userPhone}`);
       return;
     }
 
-    // ===================== REGISTRATION FLOW (Bilingual) =====================
+    // ===================== REGISTRATION FLOW =====================
     if (st.step === "ASK_NAME") {
+      if (!text || text.length < 2) {
+        await sendText(from, "❌ Please enter a valid name (at least 2 characters).\nकृपया एक मान्य नाम लिखें (कम से कम 2 अक्षर)।");
+        return;
+      }
       temp.name = text;
       await setState(from, "ASK_SURNAME", temp);
-      await sendText(from, "📝 *Enter your surname* / *अपना उपनाम लिखें*:");
+      await sendText(from, "📝 *Enter your surname / उपनाम लिखें:*");
       return;
     }
+    
     if (st.step === "ASK_SURNAME") {
+      if (!text || text.length < 1) {
+        await sendText(from, "❌ Please enter a valid surname.\nकृपया एक मान्य उपनाम लिखें।");
+        return;
+      }
       temp.surname = text;
       await setState(from, "ASK_GENDER", temp);
-      await sendButtons(from, "⚥ *Select Gender* / *लिंग चुनें*", [
+      await sendButtons(from, "⚥ *Select Gender / लिंग चुनें*", [
         { id: "GENDER_MALE", title: "👨 MALE" },
         { id: "GENDER_FEMALE", title: "👩 FEMALE" },
       ]);
       return;
     }
+    
     if (st.step === "ASK_GENDER") {
       let g = interactiveId === "GENDER_MALE" ? "male" : (interactiveId === "GENDER_FEMALE" ? "female" : normalizeGender(text));
-      if (!g) { await sendText(from, "❌ Please select gender.\nकृपया लिंग चुनें।"); return; }
+      if (!g) { 
+        await sendText(from, "❌ Please select Male or Female.\nकृपया पुरुष या महिला चुनें।"); 
+        return; 
+      }
       temp.gender = g;
       await setState(from, "ASK_MARITAL_STATUS", temp);
-      await sendList(from, "💍 *Marital Status* / *वैवाहिक स्थिति*", "Select", [
+      await sendList(from, "💍 *Marital Status / वैवाहिक स्थिति*", "Select", [
         { id: "MARITAL_UNMARRIED", title: "Unmarried / अविवाहित" },
-        { id: "MARITAL_DIVORCE", title: "Divorce / घटस्फोटित" },
-        { id: "MARITAL_WIDOW", title: "Widower/Widow / विधुर/विधवा" },
+        { id: "MARITAL_DIVORCE", title: "Divorced / तलाकशुदा" },
+        { id: "MARITAL_WIDOW", title: "Widowed / विधुर/विधवा" },
       ]);
       return;
     }
+    
     if (st.step === "ASK_MARITAL_STATUS") {
       let ms = "";
       if (interactiveId === "MARITAL_UNMARRIED") ms = "Unmarried";
-      else if (interactiveId === "MARITAL_DIVORCE") ms = "Divorce";
-      else if (interactiveId === "MARITAL_WIDOW") ms = "Widower/Widow";
-      if (!ms) { await sendText(from, "❌ Please select marital status.\nकृपया वैवाहिक स्थिति चुनें।"); return; }
+      else if (interactiveId === "MARITAL_DIVORCE") ms = "Divorced";
+      else if (interactiveId === "MARITAL_WIDOW") ms = "Widowed";
+      if (!ms) { 
+        await sendText(from, "❌ Please select your marital status.\nकृपया अपनी वैवाहिक स्थिति चुनें।"); 
+        return; 
+      }
       temp.marital_status = ms;
       await setState(from, "ASK_DOB", temp);
-      await sendText(from, "📅 *Enter Date of Birth* / *जन्मतिथि लिखें*\n\nFormat: *DD-MM-YYYY*\nExample: 15-05-1995");
+      await sendText(from, "📅 *Enter your Date of Birth*\n*अपनी जन्मतिथि लिखें*\n\nFormat: *DD-MM-YYYY*\nExample: 15-05-1995");
       return;
     }
+    
     if (st.step === "ASK_DOB") {
       const age = calcAgeFromDobDDMMYYYY(text);
-      if (age === null || age < MIN_AGE) { await sendText(from, `❌ Invalid DOB or under ${MIN_AGE} years.\nअमान्य जन्मतिथि या ${MIN_AGE} वर्ष से कम।`); return; }
+      if (age === null || age < MIN_AGE) { 
+        await sendText(from, `❌ Invalid date or age under ${MIN_AGE} years.\nअमान्य तिथि या आयु ${MIN_AGE} वर्ष से कम।\n\nPlease use DD-MM-YYYY format.\nकृपया DD-MM-YYYY प्रारूप का उपयोग करें।`); 
+        return; 
+      }
       temp.date_of_birth = text;
       await setState(from, "ASK_HEIGHT", temp);
-      await sendText(from, "📏 *Enter height* / *ऊंचाई लिखें*\n\nExample: 5'6\" or 168 cm");
+      await sendText(from, "📏 *Enter your height*\n*अपनी ऊंचाई लिखें*\n\nExamples:\n• 5'6\"\n• 168 cm\n• 5.6 ft");
       return;
     }
+    
     if (st.step === "ASK_HEIGHT") {
+      if (!text || text.length < 2) {
+        await sendText(from, "❌ Please enter a valid height.\nकृपया मान्य ऊंचाई लिखें।");
+        return;
+      }
       temp.height = text;
       await setState(from, "ASK_RELIGION", temp);
-      await sendText(from, "🕉️ *Enter religion* / *धर्म लिखें*\n\nExample: Hindu / Muslim / Christian");
+      await sendText(from, "🕉️ *Enter your religion*\n*अपना धर्म लिखें*\n\nExamples: Hindu, Muslim, Christian, Sikh, Jain, Buddhist");
       return;
     }
+    
     if (st.step === "ASK_RELIGION") {
+      if (!text || text.length < 2) {
+        await sendText(from, "❌ Please enter a valid religion.\nकृपया मान्य धर्म लिखें।");
+        return;
+      }
       temp.religion = text;
       await setState(from, "ASK_CASTE", temp);
-      await sendText(from, "👥 *Enter caste* / *जात लिखें*");
+      await sendText(from, "👥 *Enter your caste*\n*अपनी जाति लिखें*\n\nType SKIP to skip.\nSKIP टाइप करें छोड़ने के लिए।");
       return;
     }
+    
     if (st.step === "ASK_CASTE") {
-      temp.caste = text;
+      temp.caste = isSkip(text) ? "" : text;
       await setState(from, "ASK_NATIVE_PLACE", temp);
-      await sendText(from, "🏠 *Enter native place* / *मूल स्थान लिखें*");
+      await sendText(from, "🏠 *Enter your native place/city*\n*अपना मूल स्थान/शहर लिखें*");
       return;
     }
+    
     if (st.step === "ASK_NATIVE_PLACE") {
+      if (!text || text.length < 2) {
+        await sendText(from, "❌ Please enter a valid native place.\nकृपया मान्य मूल स्थान लिखें।");
+        return;
+      }
       temp.native_place = text;
       await setState(from, "ASK_DISTRICT", temp);
-      await sendText(from, "🗺️ *Enter district* / *जिला लिखें*");
+      await sendText(from, "🗺️ *Enter your district*\n*अपना जिला लिखें*");
       return;
     }
+    
     if (st.step === "ASK_DISTRICT") {
+      if (!text || text.length < 2) {
+        await sendText(from, "❌ Please enter a valid district.\nकृपया मान्य जिला लिखें।");
+        return;
+      }
       temp.district = text;
       await setState(from, "ASK_WORK_CITY", temp);
-      await sendText(from, "🏢 *Enter work city* / *कार्य शहर लिखें*\n\nType *SAME* if same as native place");
+      await sendText(from, "🏢 *Enter your work city*\n*अपना कार्य शहर लिखें*\n\nType SAME if same as native place.\nयदि मूल स्थान जैसा ही है तो SAME लिखें।");
       return;
     }
+    
     if (st.step === "ASK_WORK_CITY") {
       temp.work_city = isSame(text) ? temp.native_place : text;
       await setState(from, "ASK_WORK_DISTRICT", temp);
-      await sendText(from, "🏢 *Enter work district* / *कार्य जिला लिखें*\n\nType *SAME* or *SKIP*");
+      await sendText(from, "🏢 *Enter your work district*\n*अपना कार्य जिला लिखें*\n\nType SAME or SKIP if not applicable.");
       return;
     }
+    
     if (st.step === "ASK_WORK_DISTRICT") {
       temp.work_district = isSkip(text) ? "" : (isSame(text) ? temp.district : text);
       await setState(from, "ASK_EDU", temp);
-      await sendText(from, "🎓 *Enter education* / *शिक्षा लिखें*\n\nExample: BE, MBA, B.Com, 12th");
+      await sendText(from, "🎓 *Enter your education*\n*अपनी शिक्षा लिखें*\n\nExamples: BE, MBA, B.Com, 12th, MA, PhD");
       return;
     }
+    
     if (st.step === "ASK_EDU") {
+      if (!text || text.length < 1) {
+        await sendText(from, "❌ Please enter your education.\nकृपया अपनी शिक्षा लिखें।");
+        return;
+      }
       temp.education = text;
       await setState(from, "ASK_JOB", temp);
-      await sendButtons(from, "💼 *Select job type* / *नौकरी का प्रकार चुनें*", [
+      await sendButtons(from, "💼 *Select job type*\n*नौकरी का प्रकार चुनें*", [
         { id: "JOB_GOVT", title: "🏛️ GOVERNMENT" },
         { id: "JOB_PRIVATE", title: "🏢 PRIVATE" },
         { id: "JOB_BUSINESS", title: "📈 BUSINESS" },
       ]);
       return;
     }
+    
     if (st.step === "ASK_JOB") {
       let job = "";
       if (interactiveId === "JOB_GOVT") job = "Government";
       else if (interactiveId === "JOB_PRIVATE") job = "Private";
       else if (interactiveId === "JOB_BUSINESS") job = "Business";
-      if (!job) { await sendText(from, "❌ Please select job type.\nकृपया नौकरी का प्रकार चुनें।"); return; }
+      if (!job) { 
+        await sendText(from, "❌ Please select job type.\nकृपया नौकरी का प्रकार चुनें।"); 
+        return; 
+      }
       temp.job = job;
       await setState(from, "ASK_JOB_TITLE", temp);
-      await sendText(from, "📌 *Enter your job title* / *अपना पद लिखें*\n\nExample: Software Engineer, Teacher, Business Owner");
+      await sendText(from, "📌 *Enter your job title/position*\n*अपना पद/पोजीशन लिखें*\n\nExamples: Software Engineer, Teacher, Business Owner, Doctor");
       return;
     }
+    
     if (st.step === "ASK_JOB_TITLE") {
+      if (!text || text.length < 2) {
+        await sendText(from, "❌ Please enter a valid job title.\nकृपया मान्य पद नाम लिखें।");
+        return;
+      }
       temp.job_title = text;
       await setState(from, "ASK_INCOME", temp);
-      await sendList(from, "💰 *Monthly income* / *मासिक आय*", "Select", [
+      await sendList(from, "💰 *Monthly Income*\n*मासिक आय*", "Select", [
         { id: "INC_1", title: "Up to ₹50,000" },
-        { id: "INC_2", title: "₹50K - ₹1L" },
-        { id: "INC_3", title: "₹1L - ₹3L" },
-        { id: "INC_4", title: "Above ₹3L" },
+        { id: "INC_2", title: "₹50K - ₹1 Lakh" },
+        { id: "INC_3", title: "₹1L - ₹3 Lakh" },
+        { id: "INC_4", title: "Above ₹3 Lakh" },
       ]);
       return;
     }
+    
     if (st.step === "ASK_INCOME") {
       let income = "";
       if (interactiveId === "INC_1") income = "Up to 50,000";
       else if (interactiveId === "INC_2") income = "50,000 to 1,00,000";
       else if (interactiveId === "INC_3") income = "1,00,000 to 3,00,000";
       else if (interactiveId === "INC_4") income = "Above 3,00,000";
-      if (!income) { await sendText(from, "❌ Please select income.\nकृपया आय चुनें।"); return; }
+      if (!income) { 
+        await sendText(from, "❌ Please select income range.\nकृपया आय सीमा चुनें।"); 
+        return; 
+      }
       temp.income_annual = income;
       await setState(from, "ASK_PHOTO", temp);
-      await sendText(from, "📸 *Send your clear photo* / *अपनी साफ फोटो भेजें* 📸");
+      await sendText(from, "📸 *Send your recent photo*\n*अपनी हाल की फोटो भेजें* 📸\n\n⚠️ Clear face photo required\nसाफ चेहरे की फोटो आवश्यक\n\nSend as image, not document.\nइमेज के रूप में भेजें, डॉक्यूमेंट नहीं।");
       return;
     }
+    
     if (st.step === "ASK_PHOTO") {
-      if (msgType !== "image") { await sendText(from, "❌ Please send a photo.\nकृपया फोटो भेजें।"); return; }
+      if (msgType !== "image") { 
+        await sendText(from, "❌ Please send a photo as an image.\nकृपया इमेज के रूप में फोटो भेजें।"); 
+        return; 
+      }
+      
       const mediaId = msg.image?.id;
-      if (!mediaId) { await sendText(from, "❌ Photo not received. Try again.\nफोटो नहीं मिली। पुनः प्रयास करें।"); return; }
-      await sendText(from, "📸 *Photo received! Uploading...*\n*फोटो मिल गई! अपलोड हो रही है...*");
-      const metaUrl = await getMetaMediaUrl(mediaId);
-      if (!metaUrl) { await sendText(from, "❌ Could not read photo.\nफोटो पढ़ी नहीं जा सकी।"); return; }
-      const { bytes } = await downloadMetaMediaBytes(metaUrl);
-      const photoUrl = await uploadPhotoToCloudinary(bytes, `MH_${from}_${Date.now()}.jpg`);
-      if (!photoUrl) { await sendText(from, "❌ Upload failed. Try again.\nअपलोड विफल। पुनः प्रयास करें।"); return; }
-      temp.photo_url = photoUrl;
-      const profileId = await createProfile(from, temp);
-      await notifyAdminNewProfile(profileId, from, temp);
-      await setState(from, "", {});
-      await sendText(from, `✅ *Registration complete!* 🎉\n*रजिस्ट्रेशन पूरा हुआ!*\n\n🆔 Your ID / आपकी ID: *${profileId}*\n\n💰 *Make payment to activate features*\n*फीचर्स एक्टिव करने के लिए भुगतान करें*`);
-      await sendButtons(from, "👇 *Choose option* / *एक विकल्प चुनें* 👇", [
-        { id: "MAKE_PAYMENT", title: "💳 MAKE PAYMENT" },
-        { id: "SEARCH", title: "🔍 SEARCH" },
-      ]);
+      if (!mediaId) { 
+        await sendText(from, "❌ Photo not received. Please try again.\nफोटो प्राप्त नहीं हुई। कृपया पुनः प्रयास करें।"); 
+        return; 
+      }
+      
+      await sendText(from, "📸 *Photo received! Creating your profile...*\n*फोटो मिल गई! प्रोफाइल बना रहे हैं...*\n\n⏳ Please wait...\nकृपया प्रतीक्षा करें...");
+      
+      try {
+        const metaUrl = await getMetaMediaUrl(mediaId);
+        if (!metaUrl) { 
+          await sendText(from, "❌ Could not process photo. Please try again.\nफोटो प्रोसेस नहीं हो सकी। कृपया पुनः प्रयास करें।"); 
+          return; 
+        }
+        
+        const { bytes } = await downloadMetaMediaBytes(metaUrl);
+        const photoUrl = await uploadPhotoToCloudinary(bytes, `MH_${from}_${Date.now()}.jpg`);
+        
+        if (!photoUrl) { 
+          await sendText(from, "❌ Photo upload failed. Please try again.\nफोटो अपलोड विफल। कृपया पुनः प्रयास करें।"); 
+          return; 
+        }
+        
+        temp.photo_url = photoUrl;
+        const profileId = await createProfile(from, temp);
+        await notifyAdminNewProfile(profileId, from, temp);
+        await setState(from, "", {});
+        
+        // Registration complete - show payment options
+        await sendText(from, 
+          `🎉 *Registration Complete!*\n*पंजीकरण पूर्ण!* 🎉\n\n` +
+          `🆔 *Your Profile ID:* *${profileId}*\n` +
+          `*आपकी प्रोफाइल ID:* *${profileId}*\n\n` +
+          `✨ Congratulations! Your profile has been created.\n` +
+          `बधाई हो! आपकी प्रोफाइल बन गई है।\n\n` +
+          `━━━━━━━━━━━━━━━━━\n\n` +
+          `💰 *Activate Premium Features*\n` +
+          `*प्रीमियम सुविधाएं सक्रिय करें*\n\n` +
+          `💝 *₹300 - 3 Months*\n   ✓ Send Interest | रिश्ते भेजें\n\n` +
+          `💝 *₹1000 - 1 Year*\n   ✓ Send Interest | रिश्ते भेजें\n\n` +
+          `💎 *₹2000 - 1 Year (Premium)*\n   ✓ Send Interest + View Contact\n   ✓ रिश्ते भेजें + संपर्क देखें`
+        );
+        
+        await sendButtons(from, "👇 *What would you like to do?* / *आप क्या करना चाहेंगे?* 👇", [
+          { id: "MAKE_PAYMENT", title: "💳 MAKE PAYMENT" },
+          { id: "SEARCH", title: "🔍 SEARCH" },
+          { id: "JOIN", title: "🔄 NEW PROFILE" },
+        ]);
+        
+      } catch (err) {
+        console.error("Photo processing error:", err);
+        await sendText(from, "❌ Error processing photo. Please try again.\nफोटो प्रोसेसिंग में त्रुटि। कृपया पुनः प्रयास करें।");
+      }
       return;
     }
 
-    // Default fallback
-    await sendJoinSearchStopButtons(from);
+    // Default fallback for unrecognized input
+    if (!st.step) {
+      await sendText(from, "ℹ️ *I didn't understand that*\n*मुझे समझ नहीं आया*\n\nPlease use the buttons or commands.\nकृपया बटन या कमांड का उपयोग करें।");
+      await sendJoinSearchStopButtons(from);
+    }
     
   } catch (err) {
     console.error("Webhook error:", err?.message || err);
-    await sendText(from, "❌ *Something went wrong. Please try again.*\n*कुछ गड़बड़ हुई। कृपया पुनः प्रयास करें।*");
+    try {
+      const from = req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.from;
+      if (from) {
+        await sendText(normalizePhone(from), "❌ *Something went wrong*\n*कुछ गड़बड़ हुई*\n\nPlease try again later.\nकृपया बाद में पुनः प्रयास करें।");
+      }
+    } catch (e) {
+      console.error("Error sending error message:", e);
+    }
   }
 });
 
 // ===================== Start Server =====================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ ${BRAND_NAME} bot running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`✅ ${BRAND_NAME} Bot Running on Port ${PORT}`);
+  console.log(`📱 WhatsApp Bot Active`);
+  console.log(`🔗 QR Code URL: ${QR_IMAGE_URL ? "Configured" : "Not Set"}`);
+});
