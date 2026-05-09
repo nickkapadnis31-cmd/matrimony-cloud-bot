@@ -1,4 +1,4 @@
-// index.js — Vivaho WhatsApp Matrimony Bot (Debug Version)
+// index.js — Vivaho WhatsApp Matrimony Bot (Final Fixed Version)
 // Brand: Vivaho | Tagline: "नवीन नाती – विश्वासाने जोडलेली."
 
 require("dotenv").config();
@@ -136,7 +136,7 @@ const REQUESTS_TAB = "requests";
 const MAX_PROFILES_PER_PHONE = 1;
 const MIN_AGE = 18;
 
-// Simplified Messages
+// Messages
 const WELCOME_MSG = `💍 *${BRAND_NAME}*
 ${BRAND_TAGLINE}
 
@@ -146,6 +146,9 @@ Type *STOP* to cancel`;
 
 const NO_MATCHES_MSG = `😔 No matches found.
 Try different preferences or check back later.`;
+
+// Global search cache (in memory, not in sheet)
+global.searchCache = new Map();
 
 // ===================== Cloudinary =====================
 cloudinary.config({
@@ -497,29 +500,11 @@ async function getAllVisibleProfiles() {
       created_at: row[22] || "",
       marital_status: row[23] || "",
     };
-    // Include all profiles that are not rejected
     if (obj.approved_1 !== "REJECTED" && obj.approved_2 !== "REJECTED") {
       allProfiles.push(obj);
     }
   }
   return allProfiles;
-}
-
-function applyFiltersToVisibleProfiles(allProfiles, opts) {
-  const out = [];
-  for (const p of allProfiles) {
-    const age = calcAgeFromDobDDMMYYYY(p.date_of_birth);
-    if (age === null || age < MIN_AGE) continue;
-    if (opts.excludeProfileId && p.profile_id === opts.excludeProfileId) continue;
-    if (opts.targetGender && p.gender !== opts.targetGender) continue;
-    out.push(p);
-  }
-  return out;
-}
-
-function buildProfileCardForSearch(p) {
-  const age = calcAgeFromDobDDMMYYYY(p.date_of_birth);
-  return `📷 Profile: ${p.profile_id} | Age: ${age || "NA"} | ${p.education || "NA"} | ${p.job_title || p.job || "NA"} | ${p.native_place || "NA"}`;
 }
 
 async function showProfileCard(to, profile, temp) {
@@ -545,7 +530,7 @@ Native: ${profile.native_place || "NA"} | Work: ${profile.work_city || "NA"}`;
 }
 
 async function sendPaymentRequiredMessage(to) {
-  await sendText(to, "❌ Please make payment to send interest and view contact details.\n\nPlans: ₹300/3mo, ₹1000/yr, ₹2000/yr");
+  await sendText(to, "❌ Please make payment to send interest and view contact details.\n\n💰 Plans:\n• ₹300 for 3 months (Interest only)\n• ₹1000 for 1 year (Interest only)\n• ₹2000 for 1 year (Interest + Contact)");
   await sendButtons(to, "Choose option:", [
     { id: "JOIN", title: "JOIN" },
     { id: "SEARCH", title: "SEARCH" },
@@ -595,15 +580,39 @@ async function handleDirectCommand(from, cmd, args, temp, st) {
   }
 
   if (cmd === "NEXT") {
-    if (!temp.searchResults || !temp.searchResults.length) {
+    const cacheId = temp.searchCacheId;
+    const cache = global.searchCache?.get(cacheId);
+    
+    if (!cache || !cache.results || !cache.results.length) {
       await sendText(from, "No active search. Type SEARCH to start.");
       return;
     }
-    let newIndex = (temp.searchIndex || 0) + 1;
-    if (newIndex >= temp.searchResults.length) newIndex = 0;
-    temp.searchIndex = newIndex;
+    
+    let newIndex = cache.index + 1;
+    if (newIndex >= cache.results.length) newIndex = 0;
+    cache.index = newIndex;
+    global.searchCache.set(cacheId, cache);
+    
+    temp.searchCacheId = cacheId;
     await setState(from, "SEARCH_RESULTS_VIEW", temp);
-    await showProfileCard(from, temp.searchResults[newIndex], temp);
+    
+    const profile = cache.results[newIndex];
+    const age = calcAgeFromDobDDMMYYYY(profile.date_of_birth);
+    const msg = `📷 *Profile ${profile.profile_id}*
+Age: ${age || "NA"} | Height: ${profile.height || "NA"}
+Religion: ${profile.religion || "NA"} | Caste: ${profile.caste || "NA"}
+Education: ${profile.education || "NA"}
+Job: ${profile.job_title || profile.job || "NA"}
+Native: ${profile.native_place || "NA"} | Work: ${profile.work_city || "NA"}`;
+    
+    if (profile.photo_url) {
+      await sendImageByLink(from, profile.photo_url, msg);
+    } else {
+      await sendText(from, msg);
+    }
+    
+    temp.currentViewingProfile = profile;
+    await setState(from, "SEARCH_RESULTS_VIEW", temp);
     return;
   }
 
@@ -695,6 +704,15 @@ app.post("/webhook", async (req, res) => {
     const temp = safeJsonParse(st.temp_data || "{}", {});
     let effectiveInput = text || interactiveId || "";
 
+    // Clean old search cache (run every hour)
+    if (Math.random() < 0.01) { // 1% chance on each request
+      for (const [key, val] of global.searchCache.entries()) {
+        if (Date.now() - val.timestamp > 60 * 60 * 1000) { // 1 hour
+          global.searchCache.delete(key);
+        }
+      }
+    }
+
     // Handle button commands
     if (interactiveId.startsWith("ACCEPT_")) effectiveInput = `ACCEPT ${interactiveId.replace("ACCEPT_", "")}`;
     else if (interactiveId.startsWith("REJECT_")) effectiveInput = `REJECT ${interactiveId.replace("REJECT_", "")}`;
@@ -731,7 +749,7 @@ app.post("/webhook", async (req, res) => {
 
     const { cmd, args } = parseCommand(effectiveInput);
 
-    // Welcome message for first time or VIVAHO_HOME
+    // Welcome message for first time
     if (!st.step || cmd === "VIVAHO_HOME") {
       await sendText(from, WELCOME_MSG);
       await sendJoinSearchStopButtons(from);
@@ -763,56 +781,37 @@ app.post("/webhook", async (req, res) => {
       return;
     }
 
-    // ===================== SEARCH BRIDE/GROOM SELECTION (DEBUG VERSION) =====================
+    // ===================== SEARCH BRIDE/GROOM SELECTION (FIXED - USES CACHE) =====================
     if (effectiveInput === "SEARCH_BRIDE" || effectiveInput === "SEARCH_GROOM") {
-      // Step 1: Send immediate message
-      await sendText(from, "🔍 Step 1: Search started...");
+      await sendText(from, "🔍 Searching for matches... ⏳");
       
       try {
         const targetGender = effectiveInput === "SEARCH_BRIDE" ? "female" : "male";
-        await sendText(from, `🔍 Step 2: Looking for ${targetGender}`);
         
-        // Step 3: Try to read all rows from sheet
-        await sendText(from, "🔍 Step 3: Reading profiles from sheet...");
-        const allRows = await getAllProfilesRows();
-        await sendText(from, `🔍 Step 3: Sheet has ${allRows.length} rows (including header)`);
-        
-        if (allRows.length <= 1) {
-          await sendText(from, "❌ No profiles found in sheet! Please add some profiles.");
-          return;
-        }
-        
-        // Step 4: Try to get visible profiles
-        await sendText(from, "🔍 Step 4: Filtering profiles...");
         const allVisible = await getAllVisibleProfiles();
-        await sendText(from, `🔍 Step 4: Found ${allVisible.length} visible profiles`);
         
         if (allVisible.length === 0) {
-          await sendText(from, "❌ No visible profiles found! Check approved_1 column values.");
-          await sendText(from, "Make sure some profiles have 'PENDING' or 'APPROVED' in approved_1 column.");
+          await sendText(from, "❌ No profiles found in database.");
           return;
         }
         
-        // Step 5: Show first profile gender
-        await sendText(from, `🔍 Step 5: First profile - Gender: "${allVisible[0].gender}", Name: ${allVisible[0].name || "N/A"}`);
-        
-        // Step 6: Filter by gender
         const results = [];
         for (const p of allVisible) {
           if (p.gender === targetGender) {
             results.push(p);
           }
         }
-        await sendText(from, `🔍 Step 6: Found ${results.length} ${targetGender} profiles`);
         
         if (results.length === 0) {
-          await sendText(from, `❌ No ${targetGender} profiles found. Try the other option (BRIDE/GROOM).`);
+          await sendText(from, `❌ No ${targetGender} profiles found. Try the other option.`);
           return;
         }
         
-        // Step 7: Store results and show first profile
-        temp.searchResults = results;
-        temp.searchIndex = 0;
+        // Store in memory cache (not in sheet)
+        const cacheId = `${from}_${Date.now()}`;
+        global.searchCache.set(cacheId, { results, index: 0, timestamp: Date.now() });
+        
+        temp.searchCacheId = cacheId;
         await setState(from, "SEARCH_RESULTS_VIEW", temp);
         
         const profile = results[0];
