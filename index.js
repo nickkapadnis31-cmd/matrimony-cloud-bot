@@ -476,10 +476,37 @@ async function getAllVisibleProfiles() {
   const rows = await getAllProfilesRows();
   const allProfiles = [];
   for (let i = 1; i < rows.length; i++) {
-    const obj = profileRowToObj(rows[i], i + 1);
-    if (obj.approved_1 !== "REJECTED" && obj.approved_2 !== "REJECTED") {
-      allProfiles.push(obj);
-    }
+    const row = rows[i];
+    if (!row || row.length < 5) continue;
+    
+    const obj = {
+      rowIndex: i + 1,
+      profile_id: row[0] || "",
+      phone: row[1] || "",
+      name: row[2] || "",
+      surname: row[3] || "",
+      gender: (row[4] || "").toLowerCase(),
+      date_of_birth: row[5] || "",
+      religion: row[6] || "",
+      height: row[7] || "",
+      caste: row[8] || "",
+      native_place: row[9] || "",
+      district: row[10] || "",
+      work_city: row[11] || "",
+      work_district: row[12] || "",
+      education: row[13] || "",
+      job: row[14] || "",
+      job_title: row[15] || "",
+      income_annual: row[16] || "",
+      photo_url: row[17] || "",
+      approved_1: (row[18] || "PENDING").toUpperCase(),
+      approved_1_expiry: row[19] || "",
+      approved_2: (row[20] || "PENDING").toUpperCase(),
+      approved_2_expiry: row[21] || "",
+      created_at: row[22] || "",
+      marital_status: row[23] || "",
+    };
+    allProfiles.push(obj);
   }
   return allProfiles;
 }
