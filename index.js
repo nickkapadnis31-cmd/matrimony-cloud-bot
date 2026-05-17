@@ -914,6 +914,14 @@ app.post("/webhook", async (req, res) => {
       effectiveInput = `DELETE ${interactiveId.replace("SELF_DELETE_", "")}`;
     }
 
+    // Catch hi, hello, single chars, random text - treat like STOP
+if (!st.step && text && !interactiveId) {
+  await setState(from, "", {});
+  await sendText(from, "✅ *Process stopped*\n*प्रक्रिया बंद*\n\nAll your data is saved.\nआपका सारा डेटा सुरक्षित है।");
+  await sendJoinSearchStopButtons(from);
+  return;
+}
+    
     const { cmd, args } = parseCommand(effectiveInput);
 
     // ===================== MAIN MENU HANDLER =====================
