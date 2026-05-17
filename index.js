@@ -122,7 +122,7 @@ async function checkRateLimit(phone) {
     const oldestInWindow = recentTimestamps[0];
     const waitTime = 60000 - (now - oldestInWindow) + 1000;
     if (waitTime > 0 && waitTime < 30000) {
-      console.log(`⏳ Rate limit wait ${waitTime}ms for ${phone}`);
+      console.log("Rate limit wait " + waitTime + "ms for " + phone);
       await delay(waitTime);
     }
   }
