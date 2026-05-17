@@ -919,13 +919,12 @@ app.post("/webhook", async (req, res) => {
     // ===================== MAIN MENU HANDLER =====================
     const isGreetingText = isGreeting(text) && !isButtonClick;
    
-    if (isGreetingText && !st.step) {
-      await sendText(from, WELCOME_MSG);
-      await delay(500);
-      await sendJoinSearchStopButtons(from);
-      await setState(from, "", {});
-      return;
-    }
+   if (isGreetingText && !st.step) {
+  await setState(from, "", {});
+  await sendText(from, "✅ *Process stopped*\n*प्रक्रिया बंद*\n\nAll your data is saved.\nआपका सारा डेटा सुरक्षित है।");
+  await sendJoinSearchStopButtons(from);
+  return;
+}
    
     if (!st.step && !interactiveId && text) {
   await setState(from, "", {});
