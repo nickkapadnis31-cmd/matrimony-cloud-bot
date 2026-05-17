@@ -170,6 +170,10 @@ const MIN_AGE = 18;
 
 global.searchCache = new Map();
 
+// IMPROVEMENT 3: Daily interest tracking
+const dailyInterestCount = new Map();
+const MAX_DAILY_INTEREST = 3;
+
 // ===================== Bilingual Messages =====================
 const WELCOME_MSG = `✨ *${BRAND_NAME}* ✨\n${BRAND_TAGLINE}\n\n💍 *Welcome to your trusted Matrimony Service*\n*आपके विश्वसनीय मैट्रिमोनी सर्विस में आपका स्वागत है*\n\n📌 *Commands / कमांड्स:*\n• *JOIN* - Create profile | प्रोफाइल बनाएं\n• *SEARCH* - Find matches | रिश्ते खोजें\n• *STOP* - Cancel | रद्द करें\n\n👇 *Type JOIN, SEARCH, or STOP* 👇`;
 
@@ -179,7 +183,6 @@ const SEARCHING_MSG = `🔍 *Searching for matches...* ⏳\n*मैच ढूं
 
 const NO_MATCHES_MSG = `😔 *No matches found at this moment*\n*इस समय कोई मैच नहीं मिला*\n\n💫 *Try again later or create a profile to get discovered*\n*बाद में पुनः प्रयास करें या प्रोफाइल बनाएं*`;
 
-// MODIFICATION 1: Income added to profile card
 const PROFILE_CARD_TEMPLATE = (profile, age) => `📷 *Profile ${profile.profile_id}*\n\n🎂 Age / उम्र: ${age || "NA"}\n📏 Height / ऊंचाई: ${profile.height || "NA"}\n🕉️ Religion / धर्म: ${profile.religion || "NA"}\n👥 Caste / जात: ${profile.caste || "NA"}\n💍 Marital / वैवाहिक: ${profile.marital_status || "NA"}\n🎓 Education / शिक्षा: ${profile.education || "NA"}\n💼 Job / नौकरी: ${profile.job_title || profile.job || "NA"}\n💰 Income / आय: ${profile.income_annual || "NA"}\n🏠 Native / मूल स्थान: ${profile.native_place || "NA"}\n🏢 Work / कार्य स्थल: ${profile.work_city || "NA"}`;
 
 const ACTION_BUTTONS_MSG = `👇 *Choose action* / *कोई कार्य चुनें* 👇`;
@@ -311,7 +314,6 @@ async function sendList(to, body, buttonText, rows, sectionTitle = "Select") {
   }
 }
 
-// MODIFICATION 4: Helper function to add STOP button
 async function sendStopButton(to, body) {
   await sendButtons(to, body || "👇 *Choose option* / *एक विकल्प चुनें* 👇", [
     { id: "STOP", title: "⏹️ STOP" },
@@ -566,7 +568,6 @@ async function getAllVisibleProfiles() {
   return allProfiles;
 }
 
-// MODIFICATION 2 & 3: Enhanced filter function
 function applyFilters(profiles, filters) {
   let results = [...profiles];
   
@@ -586,7 +587,6 @@ function applyFilters(profiles, filters) {
     results = results.filter(p => cleanLower(p.work_city).includes(cleanLower(filters.workCity)));
   }
   
-  // Income filter
   if (filters.income && filters.income !== "ANY") {
     results = results.filter(p => {
       const inc = cleanLower(p.income_annual || "");
@@ -600,7 +600,6 @@ function applyFilters(profiles, filters) {
     });
   }
   
-  // Age filter
   if (filters.ageRange && filters.ageRange !== "ANY") {
     results = results.filter(p => {
       const age = calcAgeFromDobDDMMYYYY(p.date_of_birth);
@@ -615,7 +614,6 @@ function applyFilters(profiles, filters) {
     });
   }
   
-  // Marital status filter
   if (filters.marital_status && filters.marital_status !== "ANY") {
     results = results.filter(p => cleanLower(p.marital_status) === cleanLower(filters.marital_status));
   }
@@ -638,7 +636,6 @@ async function showProfileCard(to, profile, temp) {
   temp.currentViewingProfile = profile;
   await setState(to, "SEARCH_RESULTS_VIEW", temp);
   
-  // MODIFICATION 2: 3 buttons with FILTER SEARCH + STOP
   await sendButtons(to, ACTION_BUTTONS_MSG, [
     { id: "SELECT_ACTION", title: "🎯 SELECT" },
     { id: "FILTER_SEARCH", title: "🔧 FILTER" },
@@ -734,40 +731,50 @@ async function handleDirectCommand(from, cmd, args, temp, st) {
     } else {
       await sendText(from, msg);
     }
-    // MODIFICATION 4: Add buttons after DETAILS
     await sendJoinSearchStopButtons(from);
     return;
   }
 
+  // IMPROVEMENT 3: INTEREST with daily limit
   if (cmd === "INTEREST") {
     const profileId = normalizeProfileId(args[0]);
     if (!profileId) { await sendText(from, "❌ *Usage / उपयोग:* INTEREST MH-XXXX"); return; }
     
     const userProfiles = await findProfilesByPhone(from);
-    if (!userProfiles.length) { 
+    if (!userProfiles.length) {
       await sendText(from, `❌ *Registration Required*\n*पंजीकरण आवश्यक है*\n\n📝 Please JOIN to send interest to profiles.\nकृपया रिश्ते भेजने के लिए JOIN करें।\n\n${PAYMENT_PLANS_MSG}`);
       await sendButtons(from, "👇 *Choose option* / *एक विकल्प चुनें* 👇", [
         { id: "JOIN", title: "📝 JOIN" },
         { id: "SEARCH", title: "🔍 SEARCH" },
         { id: "STOP", title: "⏹️ STOP" },
       ]);
-      return; 
+      return;
     }
     
     const userProfile = userProfiles[0];
     const { canSendInterest } = getUserPaymentStatus(userProfile);
     
-    if (!canSendInterest) { 
+    if (!canSendInterest) {
       await sendText(from, `💰 *Premium Feature*\n*प्रीमियम सुविधा*\n\n⚠️ You need an active plan to send interest.\nरिश्ते भेजने के लिए सक्रिय प्लान आवश्यक है।\n\n${PAYMENT_PLANS_MSG}`);
       await sendButtons(from, "👇 *Choose option* / *एक विकल्प चुनें* 👇", [
         { id: "MAKE_PAYMENT", title: "💳 MAKE PAYMENT" },
         { id: "SEARCH", title: "🔍 SEARCH" },
         { id: "STOP", title: "⏹️ STOP" },
       ]);
-      return; 
+      return;
     }
     
     if (userProfile.profile_id === profileId) { await sendText(from, "❌ *Cannot send interest to yourself*\n*अपने आप को interest नहीं भेज सकते*"); return; }
+    
+    // IMPROVEMENT 3: Check daily limit
+    const today = new Date().toDateString();
+    const key = `${userProfile.profile_id}_${today}`;
+    const count = dailyInterestCount.get(key) || 0;
+    if (count >= MAX_DAILY_INTEREST) {
+      await sendText(from, `⚠️ *Daily limit reached!*\n*दैनिक सीमा पूरी!*\n\nYou've sent ${MAX_DAILY_INTEREST} interests today.\nआज आप ${MAX_DAILY_INTEREST} interest भेज चुके हैं।\n\nCome back tomorrow for more!\nकल और भेजें!`);
+      await sendJoinSearchStopButtons(from);
+      return;
+    }
     
     const target = await findProfileById(profileId);
     if (!target) { await sendText(from, "❌ *Profile not found*\n*प्रोफाइल नहीं मिली*"); return; }
@@ -775,13 +782,16 @@ async function handleDirectCommand(from, cmd, args, temp, st) {
     const existing = await findInterestRequest({ from_profile_id: userProfile.profile_id, to_profile_id: target.profile_id });
     if (existing && existing.status === "SENT") { await sendText(from, "ℹ️ *Interest already sent*\n*Interest पहले ही भेजा जा चुका है*"); return; }
     
+    // Increment daily count
+    dailyInterestCount.set(key, count + 1);
+    const remaining = MAX_DAILY_INTEREST - (count + 1);
+    
     await appendRequest({ from_profile_id: userProfile.profile_id, to_profile_id: target.profile_id, status: "SENT", type: "INTEREST", viewer_phone: from });
     await sendButtons(target.phone, `💌 *New Interest!*\n*नया रिश्ता!*\n\nSomeone is interested in your profile!\nकिसी ने आपकी प्रोफाइल में रुचि दिखाई है!\n\nFrom / से: ${userProfile.profile_id}`, [
       { id: `ACCEPT_${userProfile.profile_id}`, title: "✅ ACCEPT" },
       { id: `REJECT_${userProfile.profile_id}`, title: "❌ REJECT" },
     ]);
-    await sendText(from, `✅ *Interest sent successfully!*\n*रिश्ता सफलतापूर्वक भेजा गया!*\n\nTo / को: ${profileId}\n\n💫 You'll be notified if they respond.\nउनके जवाब देने पर आपको सूचित किया जाएगा।`);
-    // MODIFICATION 4: Add buttons after interest sent
+    await sendText(from, `✅ *Interest sent successfully!*\n*रिश्ता सफलतापूर्वक भेजा गया!*\n\nTo / को: ${profileId}\n📊 Remaining today: ${remaining}/${MAX_DAILY_INTEREST}\n\n💫 You'll be notified if they respond.\nउनके जवाब देने पर आपको सूचित किया जाएगा।`);
     await sendJoinSearchStopButtons(from);
     return;
   }
@@ -802,7 +812,6 @@ async function handleDirectCommand(from, cmd, args, temp, st) {
     if (cmd === "REJECT") {
       await sendText(from, `❌ *Interest rejected*\n*रिश्ता अस्वीकृत*\n\nFrom: ${interestedProfileId}`);
       if (senderProfile) await sendText(senderProfile.phone, `❌ *Interest Declined*\n*रिश्ता अस्वीकृत*\n\nYour interest was not accepted by ${receiverActive.profile_id}\nआपका रिश्ता ${receiverActive.profile_id} द्वारा स्वीकार नहीं किया गया।\n\n💫 Keep searching! More matches await!\nखोजते रहें! और भी मैच आपका इंतजार कर रहे हैं!`);
-      // MODIFICATION 4: Add buttons
       await sendJoinSearchStopButtons(from);
       return;
     }
@@ -817,7 +826,6 @@ async function handleDirectCommand(from, cmd, args, temp, st) {
     } else {
       await sendText(senderProfile.phone, `🎉 *Great News!*\n*शानदार खबर!* 🎉\n\n✅ Your interest was accepted by ${receiverActive.profile_id}!\nआपका रिश्ता ${receiverActive.profile_id} ने स्वीकार कर लिया!\n\n📞 They will contact you soon.\nवे जल्द ही आपसे संपर्क करेंगे।\n\n💝 *Best wishes from Vivaho!*\n*Vivaho की ओर से शुभकामनाएं!* 💝`);
     }
-    // MODIFICATION 4: Add buttons
     await sendJoinSearchStopButtons(from);
     return;
   }
@@ -843,6 +851,9 @@ app.post("/webhook", async (req, res) => {
     if (!msg) return;
     
     const from = normalizePhone(msg.from);
+    
+    // IMPROVEMENT 2: Quick reply for cold starts
+    sendText(from, "⏳ *Just a moment...*\n*बस एक पल...*").catch(() => {});
     
     const now = Date.now();
     const lastProcessed = lastWebhookProcessed.get(from) || 0;
@@ -927,8 +938,9 @@ app.post("/webhook", async (req, res) => {
       return;
     }
     
-    if (!st.step && !cmd && !interactiveId && text && !isGreetingText) {
-      await sendText(from, "ℹ️ *Please use the buttons below*\n*कृपया नीचे दिए गए बटन का उपयोग करें*");
+    // IMPROVEMENT 1: Universal Welcome Handler - ANY random text without state shows welcome
+    if (!st.step && !interactiveId && text && !isGreetingText) {
+      await sendText(from, WELCOME_MSG);
       await delay(500);
       await sendJoinSearchStopButtons(from);
       return;
@@ -1107,7 +1119,7 @@ app.post("/webhook", async (req, res) => {
       return;
     }
 
-    // ===================== MODIFICATION 2 & 3: FILTER SEARCH FLOW =====================
+    // ===================== FILTER SEARCH FLOW =====================
     if (effectiveInput === "FILTER_SEARCH") {
       await setState(from, "FILTER_GENDER", temp);
       await sendText(from, "🔧 *Filter Search*\n*फ़िल्टर खोज*\n\nFirst, select gender:");
@@ -1119,7 +1131,6 @@ app.post("/webhook", async (req, res) => {
       return;
     }
 
-    // Filter Step 1: Gender
     if (st.step === "FILTER_GENDER") {
       if (effectiveInput === "FILTER_BRIDE" || effectiveInput === "FILTER_GROOM") {
         temp.filters = temp.filters || {};
@@ -1134,7 +1145,6 @@ app.post("/webhook", async (req, res) => {
       }
     }
 
-    // Filter Step 2: Religion
     if (st.step === "FILTER_RELIGION") {
       if (effectiveInput === "SKIP_FILTER") {
         temp.filters = temp.filters || {};
@@ -1155,7 +1165,6 @@ app.post("/webhook", async (req, res) => {
       return;
     }
 
-    // Filter Step 3: Caste
     if (st.step === "FILTER_CASTE") {
       if (effectiveInput === "SKIP_FILTER") {
         temp.filters = temp.filters || {};
@@ -1176,7 +1185,6 @@ app.post("/webhook", async (req, res) => {
       return;
     }
 
-    // Filter Step 4: Work City
     if (st.step === "FILTER_WORK_CITY") {
       if (effectiveInput === "SKIP_FILTER") {
         temp.filters = temp.filters || {};
@@ -1199,7 +1207,6 @@ app.post("/webhook", async (req, res) => {
       return;
     }
 
-    // Filter Step 5: Income
     if (st.step === "FILTER_INCOME") {
       let income = "";
       if (interactiveId === "INC_0_50K") income = "0-50k";
@@ -1221,7 +1228,6 @@ app.post("/webhook", async (req, res) => {
       return;
     }
 
-    // Filter Step 6: Age
     if (st.step === "FILTER_AGE") {
       let ageRange = "";
       if (interactiveId === "AGE_BELOW_25") ageRange = "below-25";
@@ -1242,7 +1248,6 @@ app.post("/webhook", async (req, res) => {
       return;
     }
 
-    // Filter Step 7: Marital Status + Execute Search
     if (st.step === "FILTER_MARITAL") {
       let ms = "";
       if (interactiveId === "MS_UNMARRIED") ms = "Unmarried";
@@ -1253,7 +1258,6 @@ app.post("/webhook", async (req, res) => {
       temp.filters = temp.filters || {};
       temp.filters.marital_status = ms;
       
-      // Execute filtered search
       await sendText(from, SEARCHING_MSG);
       
       try {
@@ -1630,4 +1634,5 @@ app.listen(PORT, () => {
   console.log(`📱 WhatsApp Bot Active`);
   console.log(`🔗 QR Code: ${QR_IMAGE_URL ? "Configured" : "Not Set"}`);
   console.log(`⚡ Rate Limiting: ${MIN_MESSAGE_GAP}ms gap, ${MAX_MESSAGES_PER_MINUTE} msg/min`);
+  console.log(`💌 Daily Interest Limit: ${MAX_DAILY_INTEREST}/day`);
 });
