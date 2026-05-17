@@ -914,32 +914,25 @@ app.post("/webhook", async (req, res) => {
       effectiveInput = `DELETE ${interactiveId.replace("SELF_DELETE_", "")}`;
     }
 
-    // Catch hi, hello, single chars, random text - treat like STOP
-if (!st.step && text && !interactiveId) {
-  await setState(from, "", {});
-  await sendText(from, "✅ *Process stopped*\n*प्रक्रिया बंद*\n\nAll your data is saved.\nआपका सारा डेटा सुरक्षित है।");
-  await sendJoinSearchStopButtons(from);
-  return;
-}
-    
     const { cmd, args } = parseCommand(effectiveInput);
 
     // ===================== MAIN MENU HANDLER =====================
     const isGreetingText = isGreeting(text) && !isButtonClick;
    
-   if (isGreetingText && !st.step) {
-  await setState(from, "", {});
-  await sendText(from, "✅ *Process stopped*\n*प्रक्रिया बंद*\n\nAll your data is saved.\nआपका सारा डेटा सुरक्षित है।");
-  await sendJoinSearchStopButtons(from);
-  return;
-}
+    if (isGreetingText && !st.step) {
+      await sendText(from, WELCOME_MSG);
+      await delay(500);
+      await sendJoinSearchStopButtons(from);
+      await setState(from, "", {});
+      return;
+    }
    
-    if (!st.step && !interactiveId && text) {
-  await setState(from, "", {});
-  await sendText(from, "✅ *Process stopped*\n*प्रक्रिया बंद*\n\nAll your data is saved.\nआपका सारा डेटा सुरक्षित है।");
-  await sendJoinSearchStopButtons(from);
-  return;
-}
+    if (!st.step && !cmd && !interactiveId && text && !isGreetingText) {
+      await sendText(from, "ℹ️ *Please use the buttons below*\n*कृपया नीचे दिए गए बटन का उपयोग करें*");
+      await delay(500);
+      await sendJoinSearchStopButtons(from);
+      return;
+    }
 
     // ===================== JOIN =====================
     if (cmd === "JOIN") {
