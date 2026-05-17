@@ -919,13 +919,21 @@ app.post("/webhook", async (req, res) => {
     // ===================== MAIN MENU HANDLER =====================
     const isGreetingText = isGreeting(text) && !isButtonClick;
    
-    if (!st.step && !interactiveId && text) {
-  await setState(from, "", {});
-  await sendText(from, "Process stopped. All your data is saved. / प्रक्रिया बंद, आपका सारा डेटा सुरक्षित है।");
-  await sendJoinSearchStopButtons(from);
-  return;
-}
+    if (isGreetingText && !st.step) {
+      await sendText(from, WELCOME_MSG);
+      await delay(500);
+      await sendJoinSearchStopButtons(from);
+      await setState(from, "", {});
+      return;
+    }
    
+    if (!st.step && !interactiveId && text && !["JOIN","SEARCH","STOP","NEXT","MYPROFILES","DELETE","DETAILS","INTEREST","ACCEPT","REJECT"].includes(cmd)) {
+      await sendText(from, "ℹ️ *Please use the buttons below*\n*कृपया नीचे दिए गए बटन का उपयोग करें*");
+      await delay(500);
+      await sendJoinSearchStopButtons(from);
+      return;
+    }
+
     // ===================== JOIN =====================
     if (cmd === "JOIN") {
       const existing = await findProfilesByPhone(from);
