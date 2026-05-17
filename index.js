@@ -927,12 +927,12 @@ app.post("/webhook", async (req, res) => {
       return;
     }
    
-    if (!st.step && !cmd && !interactiveId && text && !isGreetingText) {
-      await sendText(from, "ℹ️ *Please use the buttons below*\n*कृपया नीचे दिए गए बटन का उपयोग करें*");
-      await delay(500);
-      await sendJoinSearchStopButtons(from);
-      return;
-    }
+    if (!st.step && !interactiveId && text) {
+  await setState(from, "", {});
+  await sendText(from, "✅ *Process stopped*\n*प्रक्रिया बंद*\n\nAll your data is saved.\nआपका सारा डेटा सुरक्षित है।");
+  await sendJoinSearchStopButtons(from);
+  return;
+}
 
     // ===================== JOIN =====================
     if (cmd === "JOIN") {
