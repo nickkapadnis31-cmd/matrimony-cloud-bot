@@ -106,8 +106,8 @@ function delay(ms) {
 }
 
 const userMessageTimestamps = new Map();
-const MIN_MESSAGE_GAP = 1500;
-const MAX_MESSAGES_PER_MINUTE = 8;
+const MIN_MESSAGE_GAP = 200;
+const MAX_MESSAGES_PER_MINUTE = 60;
 
 async function checkRateLimit(phone) {
   const now = Date.now();
