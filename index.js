@@ -835,25 +835,15 @@ app.get("/webhook", (req, res) => {
 });
 
 app.post("/webhook", async (req, res) => {
-  const body = req.body;
-  console.log("--- METAMSG HIT MY SERVER ---");
-  console.log(JSON.stringify(body, null, 2));
-
+  res.sendStatus(200);
+ 
   try {
     const value = req.body?.entry?.[0]?.changes?.[0]?.value;
     const msg = value?.messages?.[0];
-    
-    // 1. If it's a status update, safely respond 200 OK before exiting so Meta doesn't lock your server!
-    if (!msg) {
-      return res.sendStatus(200);
-    }
-
+    if (!msg) return;
+   
     const from = normalizePhone(msg.from);
-
-    // 2. Acknowledge the user message immediately to stop duplicate webhooks
-    res.sendStatus(200); 
-
-    // 3. Keep your original debouncing engine perfectly intact
+   
     const now = Date.now();
     const lastProcessed = lastWebhookProcessed.get(from) || 0;
     if (now - lastProcessed < WEBHOOK_DEBOUNCE_MS) {
@@ -861,13 +851,13 @@ app.post("/webhook", async (req, res) => {
       return;
     }
     lastWebhookProcessed.set(from, now);
-
-    // 4. Safe cache cleanup using the verified 'now' timestamp variable
+   
     if (Math.random() < 0.05) {
       for (const [key, timestamp] of lastWebhookProcessed.entries()) {
         if (now - timestamp > 60000) lastWebhookProcessed.delete(key);
       }
     }
+   
     const msgType = msg.type;
     const text = (msg.text?.body || "").trim();
     const interactiveId = msg.interactive?.button_reply?.id || msg.interactive?.list_reply?.id || "";
@@ -927,9 +917,16 @@ app.post("/webhook", async (req, res) => {
     const { cmd, args } = parseCommand(effectiveInput);
 
     // ===================== MAIN MENU HANDLER =====================
-    const isGreetingText = false;
+    const isGreetingText = isGreeting(text) && !isButtonClick;
    
-    if (!st.step && !cmd && !interactiveId && text && !isGreetingText) {
+    if (isGreetingText) {
+  await setState(from, "", {});
+  await sendText(from, "✅ *Process stopped*\n*प्रक्रिया बंद*\n\nAll your data is saved.\nआपका सारा डेटा सुरक्षित है।");
+  await sendJoinSearchStopButtons(from);
+  return;
+}
+   
+    if (!st.step && !interactiveId && text && !["JOIN","SEARCH","STOP","NEXT","MYPROFILES","DELETE","DETAILS","INTEREST","ACCEPT","REJECT"].includes(cmd)) {
       await sendText(from, "ℹ️ *Please use the buttons below*\n*कृपया नीचे दिए गए बटन का उपयोग करें*");
       await delay(500);
       await sendJoinSearchStopButtons(from);
@@ -1633,3 +1630,4 @@ app.listen(PORT, () => {
   console.log(`🔗 QR Code: ${QR_IMAGE_URL ? "Configured" : "Not Set"}`);
   console.log(`⚡ Rate Limiting: ${MIN_MESSAGE_GAP}ms gap, ${MAX_MESSAGES_PER_MINUTE} msg/min`);
 });
+
