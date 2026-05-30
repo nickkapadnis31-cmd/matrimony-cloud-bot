@@ -836,21 +836,28 @@ app.get("/webhook", (req, res) => {
 
 app.post("/webhook", async (req, res) => {
   const body = req.body;
-  console.log("=== METAMSG HIT MY SERVER ===");
+  console.log("--- METAMSG HIT MY SERVER ---");
   console.log(JSON.stringify(body, null, 2));
- 
+
   try {
     const value = req.body?.entry?.[0]?.changes?.[0]?.value;
     const msg = value?.messages?.[0];
-    if (!msg) return;
-   
+    
+    // 1. Exit cleanly if it is just a status check
+    if (!msg) {
+      return res.sendStatus(200);
+    }
+
     const from = normalizePhone(msg.from);
-   
-    res.sendStatus(200); // Stop Meta from sending duplicates
-   
+
+    // 2. Immediately stop Meta from double-sending duplicates
+    res.sendStatus(200); 
+
+    // 3. Clear cache tracking safely using a fresh timestamp variable
     if (Math.random() < 0.05) {
+      const currentTime = Date.now();
       for (const [key, timestamp] of lastWebhookProcessed.entries()) {
-        if (now - timestamp > 60000) lastWebhookProcessed.delete(key);
+        if (currentTime - timestamp > 60000) lastWebhookProcessed.delete(key);
       }
     }
    
