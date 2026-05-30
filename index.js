@@ -835,26 +835,25 @@ app.get("/webhook", (req, res) => {
 });
 
 app.post("/webhook", async (req, res) => {
-  res.sendStatus(200);
- 
   try {
     const value = req.body?.entry?.[0]?.changes?.[0]?.value;
     const msg = value?.messages?.[0];
-    if (!msg) return;
-   
-    const from = normalizePhone(msg.from);
-   
-    const now = Date.now();
-    const lastProcessed = lastWebhookProcessed.get(from) || 0;
-    if (now - lastProcessed < WEBHOOK_DEBOUNCE_MS) {
-      console.log(`⏩ Debounced message from ${from}`);
-      return;
+    
+    // 1. Exit cleanly if it's an administrative status check from Meta
+    if (!msg) {
+      return res.sendStatus(200);
     }
-    lastWebhookProcessed.set(from, now);
-   
+
+    const from = normalizePhone(msg.from);
+
+    // 2. Immediately tell Meta we got it to prevent duplicates
+    res.sendStatus(200); 
+
+    // 3. Cache cleanup using Date.now() instead of the broken 'now' variable
     if (Math.random() < 0.05) {
+      const currentTime = Date.now();
       for (const [key, timestamp] of lastWebhookProcessed.entries()) {
-        if (now - timestamp > 60000) lastWebhookProcessed.delete(key);
+        if (currentTime - timestamp > 60000) lastWebhookProcessed.delete(key);
       }
     }
    
