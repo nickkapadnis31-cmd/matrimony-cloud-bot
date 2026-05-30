@@ -835,28 +835,39 @@ app.get("/webhook", (req, res) => {
 });
 
 app.post("/webhook", async (req, res) => {
+  const body = req.body;
+  console.log("--- METAMSG HIT MY SERVER ---");
+  console.log(JSON.stringify(body, null, 2));
+
   try {
     const value = req.body?.entry?.[0]?.changes?.[0]?.value;
     const msg = value?.messages?.[0];
     
-    // 1. Exit cleanly if it's an administrative status check from Meta
+    // 1. If it's a status update, safely respond 200 OK before exiting so Meta doesn't lock your server!
     if (!msg) {
       return res.sendStatus(200);
     }
 
     const from = normalizePhone(msg.from);
 
-    // 2. Immediately tell Meta we got it to prevent duplicates
+    // 2. Acknowledge the user message immediately to stop duplicate webhooks
     res.sendStatus(200); 
 
-    // 3. Cache cleanup using Date.now() instead of the broken 'now' variable
+    // 3. Keep your original debouncing engine perfectly intact
+    const now = Date.now();
+    const lastProcessed = lastWebhookProcessed.get(from) || 0;
+    if (now - lastProcessed < WEBHOOK_DEBOUNCE_MS) {
+      console.log(`⏩ Debounced message from ${from}`);
+      return;
+    }
+    lastWebhookProcessed.set(from, now);
+
+    // 4. Safe cache cleanup using the verified 'now' timestamp variable
     if (Math.random() < 0.05) {
-      const currentTime = Date.now();
       for (const [key, timestamp] of lastWebhookProcessed.entries()) {
-        if (currentTime - timestamp > 60000) lastWebhookProcessed.delete(key);
+        if (now - timestamp > 60000) lastWebhookProcessed.delete(key);
       }
     }
-   
     const msgType = msg.type;
     const text = (msg.text?.body || "").trim();
     const interactiveId = msg.interactive?.button_reply?.id || msg.interactive?.list_reply?.id || "";
