@@ -846,13 +846,7 @@ app.post("/webhook", async (req, res) => {
    
     const from = normalizePhone(msg.from);
    
-    const now = Date.now();
-    const lastProcessed = lastWebhookProcessed.get(from) || 0;
-    if (now - lastProcessed < WEBHOOK_DEBOUNCE_MS) {
-      console.log(`⏩ Debounced message from ${from}`);
-      return;
-    }
-    lastWebhookProcessed.set(from, now);
+    res.sendStatus(200); // Stop Meta from sending duplicates
    
     if (Math.random() < 0.05) {
       for (const [key, timestamp] of lastWebhookProcessed.entries()) {
