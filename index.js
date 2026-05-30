@@ -917,7 +917,7 @@ app.post("/webhook", async (req, res) => {
     const { cmd, args } = parseCommand(effectiveInput);
 
     // ===================== MAIN MENU HANDLER =====================
-    const isGreetingText = isGreeting(text) && !isButtonClick;
+    const isGreetingText = false;
    
     if (isGreetingText) {
   await setState(from, "", {});
