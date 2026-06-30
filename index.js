@@ -1,5 +1,5 @@
 // index.js — Vivaho WhatsApp Matrimony Bot (Upgraded Single File)
-// English-only UX | MENU system | full_name sheet | 3 free interests/day
+// English-only UX | MENU system | full_name sheet | 3 free interests/day | latest improvements
 
 require("dotenv").config();
 
@@ -103,6 +103,54 @@ function trimTo(str, max) {
   return String(str || "").slice(0, max);
 }
 
+function normalizeCityName(city = "") {
+  const raw = String(city || "").trim();
+  const key = raw.toLowerCase().replace(/[^a-z]/g, "");
+  const aliases = {
+    nasik: "Nashik",
+    nashik: "Nashik",
+    ahemdabad: "Ahmedabad",
+    ahmedabad: "Ahmedabad",
+    ahmedbad: "Ahmedabad",
+    ahmadabad: "Ahmedabad",
+    ahemedabad: "Ahmedabad",
+    ahemednagar: "Ahmednagar",
+    ahmednagar: "Ahmednagar",
+    ahmadnagar: "Ahmednagar",
+    ahmednager: "Ahmednagar",
+    mumbai: "Mumbai",
+    bombay: "Mumbai",
+    pune: "Pune",
+    poona: "Pune",
+    banglore: "Bengaluru",
+    bangalore: "Bengaluru",
+    bengaluru: "Bengaluru",
+    calcutta: "Kolkata",
+    kolkata: "Kolkata",
+    baroda: "Vadodara",
+    vadodara: "Vadodara",
+    madras: "Chennai",
+    chennai: "Chennai"
+  };
+  return aliases[key] || raw;
+}
+
+function isWithinNextDays(dateStr, days) {
+  if (!dateStr) return false;
+  const target = new Date(dateStr);
+  if (Number.isNaN(target.getTime())) return false;
+  const now = new Date();
+  const diff = target.getTime() - now.getTime();
+  return diff > 0 && diff <= days * 24 * 60 * 60 * 1000;
+}
+
+function daysSince(dateStr) {
+  if (!dateStr) return Infinity;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return Infinity;
+  return (Date.now() - d.getTime()) / (24 * 60 * 60 * 1000);
+}
+
 // ===================== Rate Limiting =====================
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -152,6 +200,11 @@ const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "";
 const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET || "";
 const UPI_ID = process.env.UPI_ID || "";
 const QR_IMAGE_URL = process.env.VIVAHO_QR || process.env.QR_IMAGE_URL || "";
+
+// WhatsApp template settings for reminders outside the 24-hour window.
+// Use INACTIVE_REMINDER_TEMPLATE if available. Otherwise fallback to TEMPLATE_NAME.
+const TEMPLATE_LANGUAGE = process.env.TEMPLATE_LANGUAGE || "en";
+const INACTIVE_REMINDER_TEMPLATE = process.env.INACTIVE_REMINDER_TEMPLATE || process.env.TEMPLATE_NAME || "";
 
 function isAdmin(from) {
   const f = normalizePhone(from);
@@ -220,6 +273,22 @@ const PAYMENT_PLANS_MSG = `💎 *Vivaho Premium*
 const SUPPORT_PROMPT_MSG = `💬 Need help?
 
 Type your question or issue below 👇`;
+
+const INTEREST_SENT_MSG = `💌 Interest Sent!
+
+Your request has been delivered ❤️
+
+We'll let you know as soon as they respond.
+
+🤞 Fingers crossed!`;
+
+const EMPTY_FAVORITES_MSG = `❤️ No favorites yet.
+
+Save profiles you like to view them later.`;
+
+const EMPTY_INTERESTS_MSG = `💌 Nothing here yet.
+
+Start exploring matches ❤️`;
 
 const BUSINESS_ASSOCIATE_MSG = `🤝 *Earn with Vivaho*
 
@@ -318,7 +387,7 @@ async function sendText(to, body) {
 
 async function sendImageByLink(to, imageLink, caption = "") {
   const phone = normalizePhone(to);
-  if (!phone) return;
+  if (!phone) return false;
   await checkRateLimit(phone);
   const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
   try {
@@ -327,8 +396,10 @@ async function sendImageByLink(to, imageLink, caption = "") {
       { messaging_product: "whatsapp", to: phone, type: "image", image: { link: imageLink, ...(caption ? { caption: trimTo(caption, 4096) } : {}) } },
       { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, "Content-Type": "application/json" }, timeout: 20000 }
     );
+    return true;
   } catch (err) {
     console.error("sendImageByLink failed:", err?.response?.data?.error?.code || err.message);
+    return false;
   }
 }
 
@@ -383,6 +454,56 @@ async function sendList(to, body, buttonText, rows, sectionTitle = "Select") {
   } catch (err) {
     console.error("sendList failed:", err?.response?.data?.error?.code || err.message);
   }
+}
+
+async function sendTemplateMessage(to, templateName, languageCode = TEMPLATE_LANGUAGE, components = []) {
+  const phone = normalizePhone(to);
+  if (!phone || !templateName) return false;
+  await checkRateLimit(phone);
+  const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
+  try {
+    const payload = {
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "template",
+      template: {
+        name: templateName,
+        language: { code: languageCode || "en" },
+      },
+    };
+
+    if (components && components.length) {
+      payload.template.components = components;
+    }
+
+    await axios.post(
+      url,
+      payload,
+      { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, "Content-Type": "application/json" }, timeout: 20000 }
+    );
+    return true;
+  } catch (err) {
+    console.error("sendTemplateMessage failed:", err?.response?.data?.error?.message || err.message);
+    return false;
+  }
+}
+
+async function sendInactiveReminderTemplate(to) {
+  if (!INACTIVE_REMINDER_TEMPLATE) {
+    console.error("Inactive reminder skipped: INACTIVE_REMINDER_TEMPLATE / TEMPLATE_NAME not configured.");
+    return false;
+  }
+  return sendTemplateMessage(to, INACTIVE_REMINDER_TEMPLATE, TEMPLATE_LANGUAGE);
+}
+
+async function sendPhotoUploadIssue(to) {
+  await sendText(to, `📷 HD image detected or photo upload failed.
+
+Please upload a normal non-HD photo ❤️`);
+  await sendButtons(to, "Try again?", [
+    { id: "UPLOAD_PHOTO_AGAIN", title: "📸 UPLOAD" },
+    { id: "MENU", title: "📋 MENU" },
+  ]);
 }
 
 async function sendMainButtons(to) {
@@ -503,6 +624,26 @@ function profileRowToObj(row, rowIndex1Based) {
 function getDisplayName(profile) {
   const full = String(profile?.full_name || profile?.name || "").trim();
   return full ? full.split(/\s+/)[0] : "Member";
+}
+
+function buildProfileCard(profile, includeContact = false) {
+  const age = calcAgeFromDobDDMMYYYY(profile.date_of_birth);
+  const nameLine = includeContact ? `👤 ${profile.full_name || getDisplayName(profile)}
+` : "";
+  return `${nameLine}📷 *Profile ${profile.profile_id}*
+
+🎂 Age: ${age || "NA"}
+📏 Height: ${profile.height || "NA"}
+🕉️ Religion: ${profile.religion || "NA"}
+👥 Caste: ${profile.caste || "NA"}
+💍 Marital: ${profile.marital_status || "NA"}
+🎓 Education: ${profile.education || "NA"}
+💼 Work: ${profile.job_title || profile.job || "NA"}
+💰 Income: ${profile.income_annual || "NA"}
+🏠 Native: ${profile.native_place || "NA"}
+🏢 Work City: ${profile.work_city || "NA"}${includeContact ? `
+
+📞 Mobile: ${profile.phone}` : ""}`;
 }
 
 function todayISODate() {
@@ -629,7 +770,20 @@ async function getReceivedInterests(profileId) {
   const list = [];
   for (let i = 1; i < rows.length; i++) {
     if (rows[i]?.[2] === profileId && rows[i]?.[5] === "INTEREST" && rows[i]?.[3] === "SENT") {
-      list.push({ rowIndex: i + 1, from_profile_id: rows[i]?.[1], created_at: rows[i]?.[4] || "" });
+      list.push({ rowIndex: i + 1, from_profile_id: rows[i]?.[1], to_profile_id: rows[i]?.[2], status: rows[i]?.[3], created_at: rows[i]?.[4] || "" });
+    }
+  }
+  return list;
+}
+
+async function getSentInterests(profileId) {
+  const sheets = await getSheetsClient();
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: `${REQUESTS_TAB}!A:G` });
+  const rows = res.data.values || [];
+  const list = [];
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i]?.[1] === profileId && rows[i]?.[5] === "INTEREST") {
+      list.push({ rowIndex: i + 1, from_profile_id: rows[i]?.[1], to_profile_id: rows[i]?.[2], status: rows[i]?.[3] || "SENT", created_at: rows[i]?.[4] || "" });
     }
   }
   return list;
@@ -745,7 +899,7 @@ function applyFilters(profiles, filters) {
   }
  
   if (filters.workCity && filters.workCity !== "ANY") {
-    results = results.filter(p => cleanLower(p.work_city).includes(cleanLower(filters.workCity)));
+    results = results.filter(p => cleanLower(normalizeCityName(p.work_city)).includes(cleanLower(normalizeCityName(filters.workCity))));
   }
  
   // Income filter
@@ -785,25 +939,58 @@ function applyFilters(profiles, filters) {
   return results;
 }
 
-async function showProfileCard(to, profile, temp) {
-  const age = calcAgeFromDobDDMMYYYY(profile.date_of_birth);
-  const msg = PROFILE_CARD_TEMPLATE(profile, age);
+async function showProfileCard(to, profile, temp = {}, options = {}) {
+  const msg = options.captionPrefix ? `${options.captionPrefix}
+
+${buildProfileCard(profile, false)}` : buildProfileCard(profile, false);
+  let sent = false;
 
   if (profile.photo_url) {
-    await sendImageByLink(to, profile.photo_url, msg);
-  } else {
+    sent = await sendImageByLink(to, profile.photo_url, msg);
+  }
+  if (!sent) {
     await sendText(to, msg);
   }
 
-  await delay(500);
+  await delay(1800);
 
   temp.currentViewingProfile = profile;
   await setState(to, "SEARCH_RESULTS_VIEW", temp);
+
+  if (options.buttons === "contactSearchMenu") {
+    await sendButtons(to, "👇 Pick an action", [
+      { id: "VIEW_CONTACT", title: "📞 CONTACT" },
+      { id: "SEARCH", title: "🔍 SEARCH" },
+      { id: "MENU", title: "📋 MENU" },
+    ]);
+    return;
+  }
+
+  if (options.buttons === "ownProfile") {
+    await sendButtons(to, "👇 Manage your profile", [
+      { id: `CONFIRM_DELETE_${profile.profile_id}`, title: "🗑️ DELETE" },
+      { id: "SEARCH", title: "🔍 SEARCH" },
+      { id: "MENU", title: "📋 MENU" },
+    ]);
+    return;
+  }
 
   await sendButtons(to, ACTION_BUTTONS_MSG, [
     { id: "SEND_INTEREST", title: "💌 INTEREST" },
     { id: "SAVE_PROFILE", title: "⭐ SAVE" },
     { id: "NEXT", title: "➡️ NEXT" },
+  ]);
+}
+
+async function showContactCard(to, profile) {
+  const msg = buildProfileCard(profile, true);
+  let sent = false;
+  if (profile.photo_url) sent = await sendImageByLink(to, profile.photo_url, msg);
+  if (!sent) await sendText(to, msg);
+  await delay(1200);
+  await sendButtons(to, "👇 Pick an option", [
+    { id: "SEARCH", title: "🔍 SEARCH" },
+    { id: "MENU", title: "📋 MENU" },
   ]);
 }
 
@@ -815,6 +1002,41 @@ async function showFilterMenu(to) {
     { id: "FILTER_GROOM", title: "🤵 GROOM" },
     { id: "MENU", title: "📋 MENU" },
   ]);
+}
+
+async function showFilterTypeMenu(to, temp) {
+  await setState(to, "FILTER_TYPE", temp);
+  await sendList(to, "🔍 Choose a filter 👇", "Select", [
+    { id: "FILTER_ALL", title: "🌟 All Filters" },
+    { id: "FILTER_REL_CASTE", title: "Religion & Caste" },
+    { id: "FILTER_CITY_ONLY", title: "City" },
+    { id: "FILTER_INCOME_ONLY", title: "Income" },
+    { id: "FILTER_AGE_ONLY", title: "Age" },
+    { id: "FILTER_MARITAL_ONLY", title: "Marital Status" },
+    { id: "MENU", title: "Menu" },
+  ], "Filters");
+}
+
+async function executeFilteredSearch(from, temp) {
+  await sendText(from, SEARCHING_MSG);
+  const allVisible = await getAllVisibleProfiles();
+  let results = applyFilters(allVisible, temp.filters || {});
+  if (!results.length) {
+    await sendText(from, NO_MATCHES_MSG);
+    await sendButtons(from, "Try again?", [
+      { id: "FILTER_SEARCH", title: "🔧 FILTER" },
+      { id: "SEARCH", title: "🔍 SEARCH" },
+      { id: "MENU", title: "📋 MENU" },
+    ]);
+    await setState(from, "", {});
+    return;
+  }
+  results.sort(() => Math.random() - 0.5);
+  const cacheId = `${from}_${Date.now()}`;
+  global.searchCache.set(cacheId, { results, index: 0, timestamp: Date.now(), gender: temp.filters?.gender || "" });
+  temp.searchCacheId = cacheId;
+  await setState(from, "SEARCH_RESULTS_VIEW", temp);
+  await showProfileCard(from, results[0], temp);
 }
 
 
@@ -876,40 +1098,66 @@ async function showMyFavorites(to) {
   if (!userProfiles.length) return sendNotRegisteredMessage(to);
   const favorites = String(userProfiles[0].favorites || "").split(",").map(x => x.trim()).filter(Boolean);
   if (!favorites.length) {
-    await sendText(to, "❤️ No saved profiles yet.");
-    await sendMainButtons(to);
+    await sendText(to, EMPTY_FAVORITES_MSG);
+    await sendButtons(to, "👇 Start exploring", [
+      { id: "SEARCH", title: "🔍 SEARCH" },
+      { id: "MENU", title: "📋 MENU" },
+    ]);
     return;
   }
   await sendText(to, `❤️ You saved ${favorites.length} profile(s).`);
-  for (const id of favorites.slice(0, 3)) {
-    const p = await findProfileById(id);
-    if (p) await showProfileCard(to, p, {});
-  }
+  const first = await findProfileById(favorites[0]);
+  if (first) await showProfileCard(to, first, { favoriteIds: favorites, favoriteIndex: 0 });
 }
 
 async function showMyInterests(to) {
   const profiles = await findProfilesByPhone(to);
   if (!profiles.length) return sendNotRegisteredMessage(to);
-  const pending = await getReceivedInterests(profiles[0].profile_id);
-  if (!pending.length) {
-    await sendText(to, "💌 No new interests right now.");
-    await sendMainButtons(to);
-    return;
-  }
-  let msg = `💌 You have ${pending.length} interest(s) ❤️\\n\\n`;
-  for (const req of pending.slice(0, 5)) {
-    const p = await findProfileById(req.from_profile_id);
-    msg += `• ${req.from_profile_id}${p ? " — " + getDisplayName(p) : ""}\\n`;
-  }
-  msg += `\\nReply like:\\nACCEPT MH-XXXX\\nREJECT MH-XXXX`;
-  await sendText(to, msg);
-  await sendButtons(to, "Pick an option", [
-    { id: "SEARCH", title: "🔍 SEARCH" },
+  await sendButtons(to, "💌 My Interests", [
+    { id: "SENT_INTERESTS", title: "📤 SENT" },
+    { id: "RECEIVED_INTERESTS", title: "📥 RECEIVED" },
     { id: "MENU", title: "📋 MENU" },
   ]);
 }
 
+async function showSentInterests(to, index = 0) {
+  const profiles = await findProfilesByPhone(to);
+  if (!profiles.length) return sendNotRegisteredMessage(to);
+  const sent = await getSentInterests(profiles[0].profile_id);
+  if (!sent.length) {
+    await sendText(to, EMPTY_INTERESTS_MSG);
+    await sendButtons(to, "👇 Start exploring", [
+      { id: "SEARCH", title: "🔍 SEARCH" },
+      { id: "MENU", title: "📋 MENU" },
+    ]);
+    return;
+  }
+  const req = sent[index % sent.length];
+  const p = await findProfileById(req.to_profile_id);
+  await sendText(to, `📤 Interest Sent
 
+Status: ${req.status || "SENT"} ⏳`);
+  if (p) await showProfileCard(to, p, { sentInterestIndex: index, sentInterestTotal: sent.length }, { buttons: "contactSearchMenu" });
+}
+
+async function showReceivedInterests(to, index = 0) {
+  const profiles = await findProfilesByPhone(to);
+  if (!profiles.length) return sendNotRegisteredMessage(to);
+  const received = await getReceivedInterests(profiles[0].profile_id);
+  if (!received.length) {
+    await sendText(to, EMPTY_INTERESTS_MSG);
+    await sendButtons(to, "👇 Start exploring", [
+      { id: "SEARCH", title: "🔍 SEARCH" },
+      { id: "MENU", title: "📋 MENU" },
+    ]);
+    return;
+  }
+  const req = received[index % received.length];
+  const p = await findProfileById(req.from_profile_id);
+  if (p) {
+    await showProfileCard(to, p, { receivedInterestIndex: index, receivedInterestTotal: received.length }, { captionPrefix: "💌 Showed interest in your profile ❤️", buttons: "contactSearchMenu" });
+  }
+}
 
 // ===================== handleDirectCommand =====================
 async function handleDirectCommand(from, cmd, args, temp, st) {
@@ -934,6 +1182,16 @@ async function handleDirectCommand(from, cmd, args, temp, st) {
     return;
   }
 
+  if (cmd === "SENT_INTERESTS") {
+    await showSentInterests(from, Number(temp.sentInterestIndex || 0));
+    return;
+  }
+
+  if (cmd === "RECEIVED_INTERESTS") {
+    await showReceivedInterests(from, Number(temp.receivedInterestIndex || 0));
+    return;
+  }
+
   if (cmd === "SUCCESS" || cmd === "SUCCESS_STORIES") {
     await showSuccessStory(from, temp);
     return;
@@ -947,6 +1205,10 @@ async function handleDirectCommand(from, cmd, args, temp, st) {
   if (cmd === "HELP" || cmd === "HELP_SUPPORT") {
     await setState(from, "ASK_SUPPORT", {});
     await sendText(from, SUPPORT_PROMPT_MSG);
+    await sendButtons(from, "Need anything else?", [
+      { id: "SEND_SUPPORT", title: "📤 SEND" },
+      { id: "MENU", title: "📋 MENU" },
+    ]);
     return;
   }
 
@@ -963,30 +1225,30 @@ async function handleDirectCommand(from, cmd, args, temp, st) {
   if (cmd === "MYPROFILES") {
     const profiles = await findProfilesByPhone(from);
     if (!profiles.length) {
-      await sendText(from, "📝 *You don't have any profiles yet.*\n*आपकी अभी तक कोई प्रोफाइल नहीं है।*\n\nUse JOIN to create one!\nJOIN करके प्रोफाइल बनाएं!");
-      await sendJoinSearchStopButtons(from);
+      await sendText(from, `📝 No profile found yet.
+
+Create your profile and start exploring matches ❤️`);
+      await sendMainButtons(from);
       return;
     }
-    let msg = "📋 *Your Profiles / आपकी प्रोफाइल्स*\n\n";
-    for (const p of profiles) {
-      const status = p.approved_1 === "APPROVED" ? "✅ ACTIVE" : "⏳ PENDING";
-      msg += `• ${p.profile_id} - ${status}\n`;
-    }
-    await sendText(from, msg);
-    await sendButtons(from, "Select profile / प्रोफाइल चुनें:", profiles.slice(0, 3).map(p => ({ id: `MYPROFILE_${p.profile_id}`, title: p.profile_id })));
+    await showProfileCard(from, profiles[0], {}, { buttons: "ownProfile" });
     return;
   }
 
   if (cmd === "DELETE") {
     const profileId = normalizeProfileId(args[0]);
-    if (!profileId) { await sendText(from, "❌ *Usage / उपयोग:* DELETE MH-XXXX"); return; }
+    if (!profileId) { await sendText(from, "Use: DELETE MH-XXXX"); return; }
     const prof = await findProfileById(profileId);
-    if (!prof) { await sendText(from, "❌ *Profile not found*\n*प्रोफाइल नहीं मिली*"); return; }
-    if (prof.phone !== from) { await sendText(from, "❌ *You can only delete your own profile*\n*आप सिर्फ अपनी प्रोफाइल delete कर सकते हैं*"); return; }
-    await deleteProfileRow(prof.rowIndex);
-    await setState(from, "", {});
-    await sendText(from, `✅ *Profile ${profileId} deleted successfully*\n*प्रोफाइल ${profileId} सफलतापूर्वक हटा दी गई*`);
-    await sendJoinSearchStopButtons(from);
+    if (!prof) { await sendText(from, "Profile not found."); return; }
+    if (prof.phone !== from) { await sendText(from, "You can only delete your own profile."); return; }
+    await setState(from, "CONFIRM_DELETE", { deleteProfileId: profileId });
+    await sendText(from, `⚠️ Delete your profile?
+
+This can\'t be undone.`);
+    await sendButtons(from, "Confirm delete?", [
+      { id: "DELETE_YES", title: "✅ DELETE" },
+      { id: "DELETE_CANCEL", title: "❌ CANCEL" },
+    ]);
     return;
   }
 
@@ -1013,10 +1275,11 @@ async function handleDirectCommand(from, cmd, args, temp, st) {
 
     let newIndex = cache.index + 1;
     if (newIndex >= cache.results.length) {
-      await sendText(from, "You've seen all profiles in this search ✨");
+      await sendText(from, `✨ You've seen all matching profiles.
+
+We'll show more when new members join ❤️`);
       await sendButtons(from, "Try again?", [
-        { id: "SEARCH", title: "🔍 SEARCH" },
-        { id: "FILTER_SEARCH", title: "🔧 FILTER" },
+        { id: "SEARCH", title: "🔍 SEARCH AGAIN" },
         { id: "MENU", title: "📋 MENU" },
       ]);
       return;
@@ -1089,18 +1352,16 @@ Upgrade to Premium for unlimited interests + contact details 💎`);
 
     await appendRequest({ from_profile_id: userProfile.profile_id, to_profile_id: target.profile_id, status: "SENT", type: "INTEREST", viewer_phone: from });
 
-    await sendText(target.phone, `💌 New interest received ❤️
+    await showProfileCard(target.phone, userProfile, {}, { captionPrefix: "💌 Showed interest in your profile ❤️", buttons: "contactSearchMenu" });
 
-Open *My Interests* from Menu to review.`);
-    await sendButtons(target.phone, "Open now?", [
-      { id: "MYINTERESTS", title: "💌 INTERESTS" },
+    temp.currentViewingProfile = target;
+    await setState(from, "SEARCH_RESULTS_VIEW", temp);
+    await sendText(from, INTEREST_SENT_MSG);
+    await sendButtons(from, "👇 Pick an action", [
+      { id: "VIEW_CONTACT", title: "📞 CONTACT" },
+      { id: "NEXT", title: "➡️ NEXT" },
       { id: "MENU", title: "📋 MENU" },
     ]);
-
-    await sendText(from, `✅ Interest sent!
-
-To: ${profileId} ❤️`);
-    await sendMainButtons(from);
     return;
   }
 
@@ -1234,6 +1495,12 @@ app.post("/webhook", async (req, res) => {
     else if (interactiveId === "SAVE_PROFILE") effectiveInput = "SAVE_PROFILE";
     else if (interactiveId === "MYFAVORITES") effectiveInput = "MYFAVORITES";
     else if (interactiveId === "MYINTERESTS") effectiveInput = "MYINTERESTS";
+    else if (interactiveId === "SENT_INTERESTS") effectiveInput = "SENT_INTERESTS";
+    else if (interactiveId === "RECEIVED_INTERESTS") effectiveInput = "RECEIVED_INTERESTS";
+    else if (interactiveId === "SEND_SUPPORT") effectiveInput = "SEND_SUPPORT";
+    else if (interactiveId === "UPLOAD_PHOTO_AGAIN") effectiveInput = "UPLOAD_PHOTO_AGAIN";
+    else if (interactiveId === "DELETE_YES") effectiveInput = "DELETE_YES";
+    else if (interactiveId === "DELETE_CANCEL") effectiveInput = "DELETE_CANCEL";
     else if (interactiveId === "SUCCESS_STORIES") effectiveInput = "SUCCESS_STORIES";
     else if (interactiveId === "NEXT_STORY") effectiveInput = "NEXT_STORY";
     else if (interactiveId === "BUSINESS_ASSOCIATE") effectiveInput = "BUSINESS_ASSOCIATE";
@@ -1254,6 +1521,8 @@ app.post("/webhook", async (req, res) => {
     } else if (interactiveId.startsWith("ADMIN_REJECT_")) {
       const parts = interactiveId.replace("ADMIN_REJECT_", "").split("_");
       effectiveInput = `ADMIN_REJECT ${parts[0]} ${parts[1]}`;
+    } else if (interactiveId.startsWith("CONFIRM_DELETE_")) {
+      effectiveInput = `DELETE ${interactiveId.replace("CONFIRM_DELETE_", "")}`;
     } else if (interactiveId.startsWith("MYPROFILE_")) {
       const profileId = interactiveId.replace("MYPROFILE_", "");
       const prof = await findProfileById(profileId);
@@ -1294,21 +1563,37 @@ app.post("/webhook", async (req, res) => {
     if (cmd === "PREMIUM" || cmd === "PLANS") { await sendPremiumPlans(from); return; }
     if (cmd === "MYFAVORITES") { await handleDirectCommand(from, "MYFAVORITES", [], temp, st); return; }
     if (cmd === "MYINTERESTS") { await handleDirectCommand(from, "MYINTERESTS", [], temp, st); return; }
+    if (cmd === "SENT_INTERESTS") { await handleDirectCommand(from, "SENT_INTERESTS", [], temp, st); return; }
+    if (cmd === "RECEIVED_INTERESTS") { await handleDirectCommand(from, "RECEIVED_INTERESTS", [], temp, st); return; }
     if (cmd === "SUCCESS" || cmd === "SUCCESS_STORIES") { await handleDirectCommand(from, "SUCCESS_STORIES", [], temp, st); return; }
     if (cmd === "BUSINESS" || cmd === "BUSINESS_ASSOCIATE") { await handleDirectCommand(from, "BUSINESS_ASSOCIATE", [], temp, st); return; }
     if (cmd === "HELP" || cmd === "HELP_SUPPORT") { await handleDirectCommand(from, "HELP_SUPPORT", [], temp, st); return; }
     if (cmd === "SEARCHID") { await handleDirectCommand(from, "SEARCHID", args, temp, st); return; }
+    if (cmd === "UPLOAD_PHOTO_AGAIN") {
+      const currentTemp = temp || {};
+      await setState(from, "ASK_PHOTO", currentTemp);
+      await sendText(from, "📸 Please upload a normal non-HD photo.");
+      return;
+    }
+
     if (cmd === "SAVE") { effectiveInput = "SAVE_PROFILE"; }
 
     if (effectiveInput === "SAVE_PROFILE") {
       if (!temp.currentViewingProfile) { await sendText(from, "No profile selected."); return; }
       const userProfiles = await findProfilesByPhone(from);
       if (!userProfiles.length) { await sendNotRegisteredMessage(from); return; }
-      await saveFavoriteForUser(userProfiles[0], temp.currentViewingProfile.profile_id);
-      await sendText(from, "⭐ Saved to Favorites");
-      await sendButtons(from, "Next?", [
+      const userProfile = userProfiles[0];
+      const target = temp.currentViewingProfile;
+      await saveFavoriteForUser(userProfile, target.profile_id);
+      await showProfileCard(target.phone, userProfile, {}, { captionPrefix: "❤️ Saved your profile to Favorites ✨", buttons: "contactSearchMenu" });
+      await sendText(from, `❤️ Added to Favorites!
+
+This profile has been saved.
+
+You can view it anytime from My Favorites ✨`);
+      await sendButtons(from, "👇 Pick an action", [
+        { id: "VIEW_CONTACT", title: "📞 CONTACT" },
         { id: "NEXT", title: "➡️ NEXT" },
-        { id: "MYFAVORITES", title: "❤️ FAVORITES" },
         { id: "MENU", title: "📋 MENU" },
       ]);
       return;
@@ -1325,7 +1610,27 @@ app.post("/webhook", async (req, res) => {
     }
 
     if (st.step === "ASK_SUPPORT") {
-      if (!text || text.length < 2) { await sendText(from, "Please type your message 👇"); return; }
+      if (effectiveInput === "MENU") {
+        await setState(from, "", {});
+        await sendMenu(from);
+        return;
+      }
+      if (effectiveInput === "SEND_SUPPORT" && (!text || text.length < 2)) {
+        await sendText(from, "Please type your message first 👇");
+        await sendButtons(from, "Need anything else?", [
+          { id: "SEND_SUPPORT", title: "📤 SEND" },
+          { id: "MENU", title: "📋 MENU" },
+        ]);
+        return;
+      }
+      if (!text || text.length < 2) {
+        await sendText(from, "Please type your message 👇");
+        await sendButtons(from, "Need anything else?", [
+          { id: "SEND_SUPPORT", title: "📤 SEND" },
+          { id: "MENU", title: "📋 MENU" },
+        ]);
+        return;
+      }
       if (ADMIN_PHONE) {
         await sendText(ADMIN_PHONE, `🆘 Vivaho Support Request
 
@@ -1337,9 +1642,31 @@ ${text}
 🕒 ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`);
       }
       await setState(from, "", {});
-      await sendText(from, "✅ Got it!\\n\\nOur team will review your message soon ❤️");
-      await sendMainButtons(from);
+      await sendText(from, `✅ Got it!
+
+Our team will review your message soon ❤️`);
+      await sendMenu(from);
       return;
+    }
+
+    if (st.step === "CONFIRM_DELETE") {
+      if (effectiveInput === "DELETE_CANCEL" || effectiveInput === "MENU") {
+        await setState(from, "", {});
+        await sendText(from, "Delete cancelled ✅");
+        await sendMenu(from);
+        return;
+      }
+      if (effectiveInput === "DELETE_YES") {
+        const profileId = temp.deleteProfileId;
+        const prof = await findProfileById(profileId);
+        if (prof && prof.phone === from) {
+          await deleteProfileRow(prof.rowIndex);
+          await sendText(from, "✅ Profile deleted successfully.");
+        }
+        await setState(from, "", {});
+        await sendMainButtons(from);
+        return;
+      }
     }
 
     if (!st.step && !interactiveId && text && !["JOIN","SEARCH","MENU","NEXT","MYPROFILES","DELETE","DETAILS","INTEREST","ACCEPT","REJECT","SEARCHID","MYFAVORITES","MYINTERESTS"].includes(cmd)) {
@@ -1499,25 +1826,19 @@ ${text}
         return;
       }
       if (!isPremium(userProfiles[0])) {
-        await sendText(from, `🔒 Premium only
+        await sendText(from, `💎 Premium Required
 
-Upgrade to view contact details 💎`);
+Unlock contact details.
+
+₹300 • 3 Months
+₹1000 • 1 Year`);
         await sendButtons(from, "Unlock Premium?", [
-          { id: "MAKE_PAYMENT", title: "💎 PREMIUM" },
-          { id: "NEXT", title: "➡️ NEXT" },
+          { id: "MAKE_PAYMENT", title: "💎 UPGRADE" },
           { id: "MENU", title: "📋 MENU" },
         ]);
         return;
       }
-      const target = temp.currentViewingProfile;
-      await sendText(from, `📞 Contact Details
-
-👤 ${target.full_name || "NA"}
-🆔 ${target.profile_id}
-📱 ${target.phone}
-
-Best wishes from Vivaho ❤️`);
-      await sendMainButtons(from);
+      await showContactCard(from, temp.currentViewingProfile);
       return;
     }
 
@@ -1585,6 +1906,55 @@ Best wishes from Vivaho ❤️`);
       return;
     }
 
+    if (st.step === "FILTER_WORK_CITY_DONE") {
+      if (!text || text.length < 2) { await sendText(from, "Type city name 👇"); return; }
+      temp.filters = temp.filters || {};
+      temp.filters.workCity = normalizeCityName(text);
+      await executeFilteredSearch(from, temp);
+      return;
+    }
+
+    if (st.step === "FILTER_INCOME_DONE") {
+      let income = "";
+      if (interactiveId === "INC_0_50K") income = "0-50k";
+      else if (interactiveId === "INC_50K_1L") income = "50k-1l";
+      else if (interactiveId === "INC_1L_3L") income = "1l-3l";
+      else if (interactiveId === "INC_ABOVE_3L") income = "above-3l";
+      else if (interactiveId === "INC_ANY") income = "ANY";
+      if (!income) { await sendText(from, "Please select income range."); return; }
+      temp.filters = temp.filters || {};
+      temp.filters.income = income;
+      await executeFilteredSearch(from, temp);
+      return;
+    }
+
+    if (st.step === "FILTER_AGE_DONE") {
+      let ageRange = "";
+      if (interactiveId === "AGE_BELOW_25") ageRange = "below-25";
+      else if (interactiveId === "AGE_25_28") ageRange = "25-28";
+      else if (interactiveId === "AGE_28_32") ageRange = "28-32";
+      else if (interactiveId === "AGE_ABOVE_32") ageRange = "above-32";
+      else if (interactiveId === "AGE_ANY") ageRange = "ANY";
+      if (!ageRange) { await sendText(from, "Please select age range."); return; }
+      temp.filters = temp.filters || {};
+      temp.filters.ageRange = ageRange;
+      await executeFilteredSearch(from, temp);
+      return;
+    }
+
+    if (st.step === "FILTER_MARITAL_DONE") {
+      let ms = "";
+      if (interactiveId === "MS_UNMARRIED") ms = "Unmarried";
+      else if (interactiveId === "MS_DIVORCED") ms = "Divorced";
+      else if (interactiveId === "MS_WIDOWED") ms = "Widowed";
+      else if (interactiveId === "MS_ANY") ms = "ANY";
+      if (!ms) { await sendText(from, "Please select marital status."); return; }
+      temp.filters = temp.filters || {};
+      temp.filters.marital_status = ms;
+      await executeFilteredSearch(from, temp);
+      return;
+    }
+
     // Filter Step 4: Work City
     if (st.step === "FILTER_WORK_CITY") {
       if (effectiveInput === "SKIP_FILTER") {
@@ -1592,7 +1962,7 @@ Best wishes from Vivaho ❤️`);
         temp.filters.workCity = "ANY";
       } else if (text && text.length >= 2) {
         temp.filters = temp.filters || {};
-        temp.filters.workCity = text;
+        temp.filters.workCity = normalizeCityName(text);
       } else {
         await sendText(from, "❌ Please type city or tap ANY.\nकृपया शहर लिखें या ANY tap करें।");
         return;
@@ -1812,14 +2182,17 @@ Please check and try again.`);
       await updateProfileApproval1(prof.rowIndex, "APPROVED", expiry);
       await updateProfileApproval2(prof.rowIndex, "APPROVED", expiry);
 
-      await sendText(userPhone, `✅ Payment verified!
+      await sendText(userPhone, `🎉 Great news!
 
-${planText} activated 🎉
+Your profile is now live ❤️
 
-You now have:
-✅ Unlimited interests
-✅ Contact details
-✅ Priority visibility`);
+${planText} activated.
+
+Start exploring matches now.`);
+      await sendButtons(userPhone, "👇 Pick an option", [
+        { id: "SEARCH", title: "🔍 SEARCH" },
+        { id: "MENU", title: "📋 MENU" },
+      ]);
       await sendText(from, `Approved ${profileId} for ${userPhone}`);
       return;
     }
@@ -1896,7 +2269,7 @@ You now have:
    
     if (st.step === "ASK_NATIVE_PLACE") {
       if (!text || text.length < 2) { await sendText(from, "❌ Please enter native place.\nकृपया मूल स्थान लिखें।"); return; }
-      temp.native_place = text;
+      temp.native_place = normalizeCityName(text);
       await setState(from, "ASK_DISTRICT", temp);
       await sendText(from, "🗺️ *Enter your district*\n*अपना जिला लिखें*");
       return;
@@ -1911,7 +2284,7 @@ You now have:
     }
    
     if (st.step === "ASK_WORK_CITY") {
-      temp.work_city = isSame(text) ? temp.native_place : text;
+      temp.work_city = isSame(text) ? normalizeCityName(temp.native_place) : normalizeCityName(text);
       await setState(from, "ASK_WORK_DISTRICT", temp);
       await sendText(from, "🏢 *Enter your work district*\n*अपना कार्य जिला लिखें*\n\nType SAME or SKIP.");
       return;
@@ -1989,7 +2362,7 @@ You now have:
         const { bytes } = await downloadMetaMediaBytes(metaUrl);
         const photoUrl = await uploadPhotoToCloudinary(bytes, `MH_${from}_${Date.now()}.jpg`);
        
-        if (!photoUrl) { await sendText(from, "❌ Photo upload failed. Try again.\nफोटो अपलोड विफल।"); return; }
+        if (!photoUrl) { await sendPhotoUploadIssue(from); return; }
        
         temp.photo_url = photoUrl;
         const profileId = await createProfile(from, temp);
@@ -2004,15 +2377,15 @@ Start exploring matches now ❤️
 
 ${PAYMENT_PLANS_MSG}`);
        
-        await sendButtons(from, "👇 *What would you like to do?* / *आप क्या करना चाहेंगे?* 👇", [
-          { id: "MAKE_PAYMENT", title: "💳 MAKE PAYMENT" },
+        await sendButtons(from, "👇 Pick an option", [
+          { id: "MAKE_PAYMENT", title: "💎 PREMIUM" },
           { id: "SEARCH", title: "🔍 SEARCH" },
-          { id: "JOIN", title: "🔄 NEW PROFILE" },
+          { id: "MENU", title: "📋 MENU" },
         ]);
        
       } catch (err) {
         console.error("Photo processing error:", err);
-        await sendText(from, "❌ Error processing photo. Please try again.\nफोटो प्रोसेसिंग में त्रुटि। कृपया पुनः प्रयास करें।");
+        await sendPhotoUploadIssue(from);
       }
       return;
     }
@@ -2035,12 +2408,48 @@ ${PAYMENT_PLANS_MSG}`);
   }
 });
 
+// ===================== Reminder Jobs =====================
+async function runReminderJobs() {
+  try {
+    const rows = await getAllProfilesRows();
+    for (let i = 1; i < rows.length; i++) {
+      const p = profileRowToObj(rows[i], i + 1);
+      if (!p.phone) continue;
+      const lastReminderDays = daysSince(p.last_reminder_sent);
+
+      if (p.last_active && daysSince(p.last_active) >= 2 && lastReminderDays >= 2) {
+        const sent = await sendInactiveReminderTemplate(p.phone);
+        if (sent) {
+          await updateProfileExtras(p.rowIndex, { profile_id: p.profile_id, last_reminder_sent: nowISO() });
+        }
+        continue;
+      }
+
+      if (isPremium(p) && isWithinNextDays(p.approved_2_expiry, 3) && lastReminderDays >= 1) {
+        await sendText(p.phone, `💎 Your Premium expires in 3 days.
+
+Renew now to keep unlimited access ❤️`);
+        await sendButtons(p.phone, "Renew now?", [
+          { id: "MAKE_PAYMENT", title: "💎 RENEW" },
+          { id: "MENU", title: "📋 MENU" },
+        ]);
+        await updateProfileExtras(p.rowIndex, { profile_id: p.profile_id, last_reminder_sent: nowISO() });
+      }
+    }
+  } catch (err) {
+    console.error("Reminder job failed:", err.message);
+  }
+}
+
+setInterval(runReminderJobs, 6 * 60 * 60 * 1000);
+
 // ===================== Start Server =====================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ ${BRAND_NAME} Bot Running on Port ${PORT}`);
   console.log(`📱 WhatsApp Bot Active`);
   console.log(`🔗 QR Code: ${QR_IMAGE_URL ? "Configured" : "Not Set"}`);
+  console.log(`🧩 Inactive Reminder Template: ${INACTIVE_REMINDER_TEMPLATE ? INACTIVE_REMINDER_TEMPLATE : "Not Set"}`);
   console.log(`⚡ Rate Limiting: ${MIN_MESSAGE_GAP}ms gap, ${MAX_MESSAGES_PER_MINUTE} msg/min`);
 });
 
