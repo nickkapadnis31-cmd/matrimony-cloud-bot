@@ -2669,12 +2669,8 @@ Start exploring matches now.`);
         await notifyAdminNewProfile(profileId, from, temp);
         await setState(from, "", {});
        
-        await sendText(from, `🎉 Profile created!
-
-Your Profile ID: *${profileId}*
-
-Start exploring matches now ❤️');
-       
+        await sendText(from, "🎉 Profile created!\n\nYour Profile ID: *" + profileId + "*\n\nStart exploring matches now ❤️");
+        
         await sendButtons(from, "👇 Pick an option", [
           { id: "SEARCH", title: "🔍 SEARCH" },
           { id: "MENU", title: "📋 MENU" },
