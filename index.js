@@ -224,9 +224,11 @@ const MIN_AGE = 18;
 global.searchCache = new Map();
 
 // ===================== English Messages =====================
-const WELCOME_MSG = `✨ *Vivaho*
+const WELCOME_MSG = `✨ *Welcome to Vivaho*
 
 Find meaningful matches on WhatsApp ❤️
+
+Private. Simple. Made for real connections.
 
 👇 Choose an option to continue`;
 
@@ -939,6 +941,103 @@ function applyFilters(profiles, filters) {
   return results;
 }
 
+
+function normalizeIdList(csv = "") {
+  return String(csv || "")
+    .split(",")
+    .map(x => normalizeProfileId(x.trim()))
+    .filter(Boolean);
+}
+
+function listDoneMessage(type) {
+  if (type === "favorite") {
+    return `✨ All favorite profiles are shown.
+
+Save more profiles while searching ❤️`;
+  }
+  if (type === "sent") {
+    return `✨ All sent interests are shown.
+
+Keep exploring more matches ❤️`;
+  }
+  if (type === "received") {
+    return `✨ All received interests are shown.
+
+Keep exploring more matches ❤️`;
+  }
+  return `✨ All profiles are shown.
+
+Keep exploring more matches ❤️`;
+}
+
+async function sendListFinished(to, type) {
+  await sendText(to, listDoneMessage(type));
+  await sendButtons(to, "👇 Pick an option", [
+    { id: "SEARCH", title: "🔍 SEARCH" },
+    { id: "MENU", title: "📋 MENU" },
+  ]);
+  await setState(to, "", {});
+}
+
+async function askFilterReligion(to, temp, step = "FILTER_RELIGION") {
+  await setState(to, step, temp);
+  await sendButtons(to, "🕉️ Religion", [
+    { id: "FILTER_REL_HINDU", title: "🕉️ HINDU" },
+    { id: "SKIP_FILTER", title: "ANY" },
+    { id: "MENU", title: "📋 MENU" },
+  ]);
+}
+
+async function askFilterCaste(to, temp, step = "FILTER_CASTE") {
+  await setState(to, step, temp);
+  await sendText(to, "👥 Type caste or tap ANY 👇");
+  await sendButtons(to, "👇 Choose", [
+    { id: "SKIP_FILTER", title: "ANY" },
+    { id: "MENU", title: "📋 MENU" },
+  ]);
+}
+
+async function askFilterCity(to, temp, step = "FILTER_WORK_CITY") {
+  await setState(to, step, temp);
+  await sendText(to, "🏙️ Type work city or tap ANY 👇");
+  await sendButtons(to, "👇 Choose", [
+    { id: "SKIP_FILTER", title: "ANY" },
+    { id: "MENU", title: "📋 MENU" },
+  ]);
+}
+
+async function askFilterIncome(to, temp, step = "FILTER_INCOME") {
+  await setState(to, step, temp);
+  await sendList(to, "💰 Select income range", "Select", [
+    { id: "INC_0_50K", title: "₹0 - 50,000" },
+    { id: "INC_50K_1L", title: "₹50K - 1 Lakh" },
+    { id: "INC_1L_3L", title: "₹1L - 3 Lakh" },
+    { id: "INC_ABOVE_3L", title: "Above ₹3 Lakh" },
+    { id: "INC_ANY", title: "Any" },
+  ], "Income Range");
+}
+
+async function askFilterAge(to, temp, step = "FILTER_AGE") {
+  await setState(to, step, temp);
+  await sendList(to, "🎂 Select age range", "Select", [
+    { id: "AGE_BELOW_25", title: "Below 25" },
+    { id: "AGE_25_28", title: "25 to 28" },
+    { id: "AGE_28_32", title: "28 to 32" },
+    { id: "AGE_ABOVE_32", title: "Above 32" },
+    { id: "AGE_ANY", title: "Any" },
+  ], "Age Range");
+}
+
+async function askFilterMarital(to, temp, step = "FILTER_MARITAL") {
+  await setState(to, step, temp);
+  await sendList(to, "💍 Marital Status", "Select", [
+    { id: "MS_UNMARRIED", title: "Unmarried" },
+    { id: "MS_DIVORCED", title: "Divorced" },
+    { id: "MS_WIDOWED", title: "Widowed" },
+    { id: "MS_ANY", title: "Any" },
+  ], "Marital Status");
+}
+
 async function showProfileCard(to, profile, temp = {}, options = {}) {
   const msg = options.captionPrefix ? `${options.captionPrefix}
 
@@ -961,6 +1060,33 @@ ${buildProfileCard(profile, false)}` : buildProfileCard(profile, false);
     await sendButtons(to, "👇 Pick an action", [
       { id: "VIEW_CONTACT", title: "📞 CONTACT" },
       { id: "SEARCH", title: "🔍 SEARCH" },
+      { id: "MENU", title: "📋 MENU" },
+    ]);
+    return;
+  }
+
+  if (options.buttons === "favoriteMenu") {
+    await sendButtons(to, "👇 Pick an action", [
+      { id: "VIEW_CONTACT", title: "📞 CONTACT" },
+      { id: "NEXT_FAVORITE", title: "➡️ NEXT" },
+      { id: "MENU", title: "📋 MENU" },
+    ]);
+    return;
+  }
+
+  if (options.buttons === "sentInterestMenu") {
+    await sendButtons(to, "👇 Pick an action", [
+      { id: "VIEW_CONTACT", title: "📞 CONTACT" },
+      { id: "NEXT_SENT_INTEREST", title: "➡️ NEXT" },
+      { id: "MENU", title: "📋 MENU" },
+    ]);
+    return;
+  }
+
+  if (options.buttons === "receivedInterestMenu") {
+    await sendButtons(to, "👇 Pick an action", [
+      { id: "VIEW_CONTACT", title: "📞 CONTACT" },
+      { id: "NEXT_RECEIVED_INTEREST", title: "➡️ NEXT" },
       { id: "MENU", title: "📋 MENU" },
     ]);
     return;
@@ -1093,11 +1219,13 @@ No fixed limit. Grow your network 🚀`);
   ]);
 }
 
-async function showMyFavorites(to) {
+async function showMyFavorites(to, index = 0) {
   const userProfiles = await findProfilesByPhone(to);
   if (!userProfiles.length) return sendNotRegisteredMessage(to);
-  const favorites = String(userProfiles[0].favorites || "").split(",").map(x => x.trim()).filter(Boolean);
-  if (!favorites.length) {
+
+  const favoriteIds = normalizeIdList(userProfiles[0].favorites);
+
+  if (!favoriteIds.length) {
     await sendText(to, EMPTY_FAVORITES_MSG);
     await sendButtons(to, "👇 Start exploring", [
       { id: "SEARCH", title: "🔍 SEARCH" },
@@ -1105,9 +1233,28 @@ async function showMyFavorites(to) {
     ]);
     return;
   }
-  await sendText(to, `❤️ You saved ${favorites.length} profile(s).`);
-  const first = await findProfileById(favorites[0]);
-  if (first) await showProfileCard(to, first, { favoriteIds: favorites, favoriteIndex: 0 });
+
+  if (index >= favoriteIds.length) {
+    await sendListFinished(to, "favorite");
+    return;
+  }
+
+  const profile = await findProfileById(favoriteIds[index]);
+
+  if (!profile) {
+    await showMyFavorites(to, index + 1);
+    return;
+  }
+
+  await sendText(to, `❤️ Saved Profiles
+
+Showing ${index + 1} of ${favoriteIds.length}`);
+  await showProfileCard(
+    to,
+    profile,
+    { favoriteIds, favoriteIndex: index, currentViewingProfile: profile },
+    { buttons: "favoriteMenu" }
+  );
 }
 
 async function showMyInterests(to) {
@@ -1123,7 +1270,9 @@ async function showMyInterests(to) {
 async function showSentInterests(to, index = 0) {
   const profiles = await findProfilesByPhone(to);
   if (!profiles.length) return sendNotRegisteredMessage(to);
+
   const sent = await getSentInterests(profiles[0].profile_id);
+
   if (!sent.length) {
     await sendText(to, EMPTY_INTERESTS_MSG);
     await sendButtons(to, "👇 Start exploring", [
@@ -1132,18 +1281,39 @@ async function showSentInterests(to, index = 0) {
     ]);
     return;
   }
-  const req = sent[index % sent.length];
+
+  if (index >= sent.length) {
+    await sendListFinished(to, "sent");
+    return;
+  }
+
+  const req = sent[index];
   const p = await findProfileById(req.to_profile_id);
+
+  if (!p) {
+    await showSentInterests(to, index + 1);
+    return;
+  }
+
   await sendText(to, `📤 Interest Sent
 
+Showing ${index + 1} of ${sent.length}
 Status: ${req.status || "SENT"} ⏳`);
-  if (p) await showProfileCard(to, p, { sentInterestIndex: index, sentInterestTotal: sent.length }, { buttons: "contactSearchMenu" });
+
+  await showProfileCard(
+    to,
+    p,
+    { sentInterestIndex: index, sentInterestTotal: sent.length, currentViewingProfile: p },
+    { buttons: "sentInterestMenu" }
+  );
 }
 
 async function showReceivedInterests(to, index = 0) {
   const profiles = await findProfilesByPhone(to);
   if (!profiles.length) return sendNotRegisteredMessage(to);
+
   const received = await getReceivedInterests(profiles[0].profile_id);
+
   if (!received.length) {
     await sendText(to, EMPTY_INTERESTS_MSG);
     await sendButtons(to, "👇 Start exploring", [
@@ -1152,11 +1322,29 @@ async function showReceivedInterests(to, index = 0) {
     ]);
     return;
   }
-  const req = received[index % received.length];
-  const p = await findProfileById(req.from_profile_id);
-  if (p) {
-    await showProfileCard(to, p, { receivedInterestIndex: index, receivedInterestTotal: received.length }, { captionPrefix: "💌 Showed interest in your profile ❤️", buttons: "contactSearchMenu" });
+
+  if (index >= received.length) {
+    await sendListFinished(to, "received");
+    return;
   }
+
+  const req = received[index];
+  const p = await findProfileById(req.from_profile_id);
+
+  if (!p) {
+    await showReceivedInterests(to, index + 1);
+    return;
+  }
+
+  await sendText(to, `📥 Received Interest
+
+Showing ${index + 1} of ${received.length}`);
+  await showProfileCard(
+    to,
+    p,
+    { receivedInterestIndex: index, receivedInterestTotal: received.length, currentViewingProfile: p },
+    { captionPrefix: "💌 Showed interest in your profile ❤️", buttons: "receivedInterestMenu" }
+  );
 }
 
 // ===================== handleDirectCommand =====================
@@ -1187,8 +1375,23 @@ async function handleDirectCommand(from, cmd, args, temp, st) {
     return;
   }
 
+  if (cmd === "NEXT_SENT_INTEREST") {
+    await showSentInterests(from, Number(temp.sentInterestIndex || 0) + 1);
+    return;
+  }
+
   if (cmd === "RECEIVED_INTERESTS") {
     await showReceivedInterests(from, Number(temp.receivedInterestIndex || 0));
+    return;
+  }
+
+  if (cmd === "NEXT_RECEIVED_INTEREST") {
+    await showReceivedInterests(from, Number(temp.receivedInterestIndex || 0) + 1);
+    return;
+  }
+
+  if (cmd === "NEXT_FAVORITE") {
+    await showMyFavorites(from, Number(temp.favoriteIndex || 0) + 1);
     return;
   }
 
@@ -1255,7 +1458,7 @@ This can\'t be undone.`);
   if (cmd === "SEARCH") {
     await sendText(from, SEARCH_GENDER_MSG);
     await setState(from, "SEARCH_BRIDE_GROOM", {});
-    await sendButtons(from, "👇 *Select* / *चुनें* 👇", [
+    await sendButtons(from, "👇 Select", [
       { id: "SEARCH_BRIDE", title: "👰 BRIDE" },
       { id: "SEARCH_GROOM", title: "🤵 GROOM" },
       { id: "MENU", title: "📋 MENU" },
@@ -1430,6 +1633,41 @@ Upgrade to Premium to view contact details 💎`);
   }
 }
 
+// ===================== Inactive Reminder Scheduler =====================
+
+async function checkInactiveUsers() {
+  try {
+    const profiles = await getAllVisibleProfiles();
+
+    for (const p of profiles) {
+      if (!p.phone) continue;
+
+      // Skip if active within last 2 days
+      if (daysSince(p.last_active) < 2) continue;
+
+      // Prevent duplicate reminders within 2 days
+      if (daysSince(p.last_reminder_sent) < 2) continue;
+
+      console.log(`Sending reminder to ${p.phone}`);
+
+      const sent = await sendInactiveReminderTemplate(p.phone);
+
+      if (sent) {
+        await updateProfileExtras(p.rowIndex, {
+          profile_id: p.profile_id,
+          last_reminder_sent: nowISO()
+        });
+
+        // Small delay to avoid rate limits
+        await delay(1000);
+      }
+    }
+
+  } catch (err) {
+    console.error("Reminder Scheduler:", err.message);
+  }
+}
+
 // ===================== Health & Webhook =====================
 app.get("/health", (req, res) => res.status(200).send("OK"));
 
@@ -1496,7 +1734,10 @@ app.post("/webhook", async (req, res) => {
     else if (interactiveId === "MYFAVORITES") effectiveInput = "MYFAVORITES";
     else if (interactiveId === "MYINTERESTS") effectiveInput = "MYINTERESTS";
     else if (interactiveId === "SENT_INTERESTS") effectiveInput = "SENT_INTERESTS";
+    else if (interactiveId === "NEXT_SENT_INTEREST") effectiveInput = "NEXT_SENT_INTEREST";
     else if (interactiveId === "RECEIVED_INTERESTS") effectiveInput = "RECEIVED_INTERESTS";
+    else if (interactiveId === "NEXT_RECEIVED_INTEREST") effectiveInput = "NEXT_RECEIVED_INTEREST";
+    else if (interactiveId === "NEXT_FAVORITE") effectiveInput = "NEXT_FAVORITE";
     else if (interactiveId === "SEND_SUPPORT") effectiveInput = "SEND_SUPPORT";
     else if (interactiveId === "UPLOAD_PHOTO_AGAIN") effectiveInput = "UPLOAD_PHOTO_AGAIN";
     else if (interactiveId === "DELETE_YES") effectiveInput = "DELETE_YES";
@@ -1509,6 +1750,16 @@ app.post("/webhook", async (req, res) => {
     else if (interactiveId === "HELP_SUPPORT") effectiveInput = "HELP_SUPPORT";
     else if (interactiveId === "CLEAR_FILTERS") effectiveInput = "CLEAR_FILTERS";
     else if (interactiveId === "SKIP_FILTER") effectiveInput = "SKIP_FILTER";
+    else if (interactiveId === "FILTER_ALL") effectiveInput = "FILTER_ALL";
+    else if (interactiveId === "FILTER_REL_CASTE") effectiveInput = "FILTER_REL_CASTE";
+    else if (interactiveId === "FILTER_CITY_ONLY") effectiveInput = "FILTER_CITY_ONLY";
+    else if (interactiveId === "FILTER_INCOME_ONLY") effectiveInput = "FILTER_INCOME_ONLY";
+    else if (interactiveId === "FILTER_AGE_ONLY") effectiveInput = "FILTER_AGE_ONLY";
+    else if (interactiveId === "FILTER_MARITAL_ONLY") effectiveInput = "FILTER_MARITAL_ONLY";
+    else if (interactiveId === "FILTER_REL_HINDU") effectiveInput = "FILTER_REL_HINDU";
+    else if (interactiveId === "RELIGION_HINDU") effectiveInput = "RELIGION_HINDU";
+    else if (interactiveId === "RELIGION_OTHER") effectiveInput = "RELIGION_OTHER";
+    else if (interactiveId === "SKIP_CASTE") effectiveInput = "SKIP_CASTE";
     else if (interactiveId.startsWith("ADMIN_APPROVE_1_3MO_")) {
       const parts = interactiveId.replace("ADMIN_APPROVE_1_3MO_", "").split("_");
       effectiveInput = `ADMIN_APPROVE_1_3MO ${parts[0]} ${parts[1]}`;
@@ -1564,7 +1815,10 @@ app.post("/webhook", async (req, res) => {
     if (cmd === "MYFAVORITES") { await handleDirectCommand(from, "MYFAVORITES", [], temp, st); return; }
     if (cmd === "MYINTERESTS") { await handleDirectCommand(from, "MYINTERESTS", [], temp, st); return; }
     if (cmd === "SENT_INTERESTS") { await handleDirectCommand(from, "SENT_INTERESTS", [], temp, st); return; }
+    if (cmd === "NEXT_SENT_INTEREST") { await handleDirectCommand(from, "NEXT_SENT_INTEREST", [], temp, st); return; }
     if (cmd === "RECEIVED_INTERESTS") { await handleDirectCommand(from, "RECEIVED_INTERESTS", [], temp, st); return; }
+    if (cmd === "NEXT_RECEIVED_INTEREST") { await handleDirectCommand(from, "NEXT_RECEIVED_INTEREST", [], temp, st); return; }
+    if (cmd === "NEXT_FAVORITE") { await handleDirectCommand(from, "NEXT_FAVORITE", [], temp, st); return; }
     if (cmd === "SUCCESS" || cmd === "SUCCESS_STORIES") { await handleDirectCommand(from, "SUCCESS_STORIES", [], temp, st); return; }
     if (cmd === "BUSINESS" || cmd === "BUSINESS_ASSOCIATE") { await handleDirectCommand(from, "BUSINESS_ASSOCIATE", [], temp, st); return; }
     if (cmd === "HELP" || cmd === "HELP_SUPPORT") { await handleDirectCommand(from, "HELP_SUPPORT", [], temp, st); return; }
@@ -1669,7 +1923,7 @@ Our team will review your message soon ❤️`);
       }
     }
 
-    if (!st.step && !interactiveId && text && !["JOIN","SEARCH","MENU","NEXT","MYPROFILES","DELETE","DETAILS","INTEREST","ACCEPT","REJECT","SEARCHID","MYFAVORITES","MYINTERESTS"].includes(cmd)) {
+    if (!st.step && !interactiveId && text && !["JOIN","SEARCH","MENU","NEXT","MYPROFILES","DELETE","DETAILS","INTEREST","ACCEPT","REJECT","SEARCHID","MYFAVORITES","MYINTERESTS","SENT_INTERESTS","RECEIVED_INTERESTS","NEXT_SENT_INTEREST","NEXT_RECEIVED_INTEREST","NEXT_FAVORITE"].includes(cmd)) {
       await sendText(from, "👇 Pick an option to continue");
       await sendMainButtons(from);
       return;
@@ -1755,7 +2009,7 @@ Our team will review your message soon ❤️`);
        
       } catch (err) {
         console.error("Search error:", err);
-        await sendText(from, "❌ *Something went wrong*\n*कुछ गड़बड़ हुई*\n\nPlease try again.\nकृपया पुनः प्रयास करें।");
+        await sendText(from, "❌ Something went wrong.\n\nPlease try again.");
         await setState(from, "", {});
         await sendJoinSearchStopButtons(from);
       }
@@ -1768,7 +2022,7 @@ Our team will review your message soon ❤️`);
         await sendText(from, "ℹ️ *No profile selected*\n*कोई प्रोफाइल चुनी नहीं गई*\n\nStarting new search...");
         await sendText(from, SEARCH_GENDER_MSG);
         await setState(from, "SEARCH_BRIDE_GROOM", {});
-        await sendButtons(from, "👇 *Select* / *चुनें* 👇", [
+        await sendButtons(from, "👇 Select", [
           { id: "SEARCH_BRIDE", title: "👰 BRIDE" },
           { id: "SEARCH_GROOM", title: "🤵 GROOM" },
           { id: "MENU", title: "📋 MENU" },
@@ -1852,16 +2106,52 @@ Unlock contact details.
     // Filter Step 1: Gender
     if (st.step === "FILTER_GENDER") {
       if (effectiveInput === "FILTER_BRIDE" || effectiveInput === "FILTER_GROOM") {
-        temp.filters = temp.filters || {};
+        temp.filters = {};
         temp.filters.gender = effectiveInput === "FILTER_BRIDE" ? "female" : "male";
-        await setState(from, "FILTER_RELIGION", temp);
-        await sendText(from, "🕉️ *Religion / धर्म*\n\nType religion name or tap ANY\nधर्म का नाम लिखें या ANY tap करें");
-        await sendButtons(from, "👇 *Choose* / *चुनें* 👇", [
-          { id: "SKIP_FILTER", title: "ANY" },
-          { id: "MENU", title: "📋 MENU" },
-        ]);
+        await showFilterTypeMenu(from, temp);
         return;
       }
+    }
+
+    if (st.step === "FILTER_TYPE") {
+      if (effectiveInput === "FILTER_ALL") {
+        temp.quickFilter = "";
+        await askFilterReligion(from, temp, "FILTER_RELIGION");
+        return;
+      }
+
+      if (effectiveInput === "FILTER_REL_CASTE") {
+        temp.quickFilter = "REL_CASTE";
+        await askFilterReligion(from, temp, "FILTER_RELIGION");
+        return;
+      }
+
+      if (effectiveInput === "FILTER_CITY_ONLY") {
+        temp.quickFilter = "CITY";
+        await askFilterCity(from, temp, "FILTER_WORK_CITY_DONE");
+        return;
+      }
+
+      if (effectiveInput === "FILTER_INCOME_ONLY") {
+        temp.quickFilter = "INCOME";
+        await askFilterIncome(from, temp, "FILTER_INCOME_DONE");
+        return;
+      }
+
+      if (effectiveInput === "FILTER_AGE_ONLY") {
+        temp.quickFilter = "AGE";
+        await askFilterAge(from, temp, "FILTER_AGE_DONE");
+        return;
+      }
+
+      if (effectiveInput === "FILTER_MARITAL_ONLY") {
+        temp.quickFilter = "MARITAL";
+        await askFilterMarital(from, temp, "FILTER_MARITAL_DONE");
+        return;
+      }
+
+      await showFilterTypeMenu(from, temp);
+      return;
     }
 
     // Filter Step 2: Religion
@@ -1869,19 +2159,17 @@ Unlock contact details.
       if (effectiveInput === "SKIP_FILTER") {
         temp.filters = temp.filters || {};
         temp.filters.religion = "ANY";
+      } else if (effectiveInput === "FILTER_REL_HINDU") {
+        temp.filters = temp.filters || {};
+        temp.filters.religion = "Hindu";
       } else if (text && text.length >= 2) {
         temp.filters = temp.filters || {};
         temp.filters.religion = text;
       } else {
-        await sendText(from, "❌ Please type religion or tap ANY.\nकृपया धर्म लिखें या ANY tap करें।");
+        await sendText(from, "Please type religion or tap ANY.");
         return;
       }
-      await setState(from, "FILTER_CASTE", temp);
-      await sendText(from, "👥 *Caste / जाति*\n\nType caste name or tap ANY\nजाति का नाम लिखें या ANY tap करें");
-      await sendButtons(from, "👇 *Choose* / *चुनें* 👇", [
-        { id: "SKIP_FILTER", title: "ANY" },
-        { id: "MENU", title: "📋 MENU" },
-      ]);
+      await askFilterCaste(from, temp, "FILTER_CASTE");
       return;
     }
 
@@ -1894,15 +2182,16 @@ Unlock contact details.
         temp.filters = temp.filters || {};
         temp.filters.caste = text;
       } else {
-        await sendText(from, "❌ Please type caste or tap ANY.\nकृपया जाति लिखें या ANY tap करें।");
+        await sendText(from, "Please type caste or tap ANY.");
         return;
       }
-      await setState(from, "FILTER_WORK_CITY", temp);
-      await sendText(from, "🏢 *Work City / कार्य शहर*\n\nType city name or tap ANY\nशहर का नाम लिखें या ANY tap करें");
-      await sendButtons(from, "👇 *Choose* / *चुनें* 👇", [
-        { id: "SKIP_FILTER", title: "ANY" },
-        { id: "MENU", title: "📋 MENU" },
-      ]);
+
+      if (temp.quickFilter === "REL_CASTE") {
+        await executeFilteredSearch(from, temp);
+        return;
+      }
+
+      await askFilterCity(from, temp, "FILTER_WORK_CITY");
       return;
     }
 
@@ -1967,14 +2256,7 @@ Unlock contact details.
         await sendText(from, "❌ Please type city or tap ANY.\nकृपया शहर लिखें या ANY tap करें।");
         return;
       }
-      await setState(from, "FILTER_INCOME", temp);
-      await sendList(from, "💰 *Income / आय*\n\nSelect income range", "Select", [
-        { id: "INC_0_50K", title: "₹0 - 50,000" },
-        { id: "INC_50K_1L", title: "₹50K - 1 Lakh" },
-        { id: "INC_1L_3L", title: "₹1L - 3 Lakh" },
-        { id: "INC_ABOVE_3L", title: "Above ₹3 Lakh" },
-        { id: "INC_ANY", title: "Any" },
-      ], "Income Range");
+      await askFilterIncome(from, temp, "FILTER_INCOME");
       return;
     }
 
@@ -1989,14 +2271,7 @@ Unlock contact details.
       if (!income) { await sendText(from, "❌ Please select income range.\nकृपया आय सीमा चुनें।"); return; }
       temp.filters = temp.filters || {};
       temp.filters.income = income;
-      await setState(from, "FILTER_AGE", temp);
-      await sendList(from, "🎂 *Age / उम्र*\n\nSelect age range", "Select", [
-        { id: "AGE_BELOW_25", title: "Below 25" },
-        { id: "AGE_25_28", title: "25 to 28" },
-        { id: "AGE_28_32", title: "28 to 32" },
-        { id: "AGE_ABOVE_32", title: "Above 32" },
-        { id: "AGE_ANY", title: "Any" },
-      ], "Age Range");
+      await askFilterAge(from, temp, "FILTER_AGE");
       return;
     }
 
@@ -2011,13 +2286,7 @@ Unlock contact details.
       if (!ageRange) { await sendText(from, "❌ Please select age range.\nकृपया आयु सीमा चुनें।"); return; }
       temp.filters = temp.filters || {};
       temp.filters.ageRange = ageRange;
-      await setState(from, "FILTER_MARITAL", temp);
-      await sendList(from, "💍 Marital Status", "Select", [
-        { id: "MS_UNMARRIED", title: "Unmarried" },
-        { id: "MS_DIVORCED", title: "Divorced" },
-        { id: "MS_WIDOWED", title: "Widowed" },
-        { id: "MS_ANY", title: "Any / कोई भी" },
-      ], "Marital Status");
+      await askFilterMarital(from, temp, "FILTER_MARITAL");
       return;
     }
 
@@ -2070,7 +2339,7 @@ Unlock contact details.
        
       } catch (err) {
         console.error("Filter search error:", err);
-        await sendText(from, "❌ *Something went wrong*\n*कुछ गड़बड़ हुई*\n\nPlease try again.\nकृपया पुनः प्रयास करें।");
+        await sendText(from, "❌ Something went wrong.\n\nPlease try again.");
         await setState(from, "", {});
         await sendJoinSearchStopButtons(from);
       }
@@ -2083,7 +2352,7 @@ Unlock contact details.
       await sendText(from, "🔄 *Filters cleared*\n*फ़िल्टर हटा दिए गए*\n\nStarting fresh search...");
       await sendText(from, SEARCH_GENDER_MSG);
       await setState(from, "SEARCH_BRIDE_GROOM", temp);
-      await sendButtons(from, "👇 *Select* / *चुनें* 👇", [
+      await sendButtons(from, "👇 Select", [
         { id: "SEARCH_BRIDE", title: "👰 BRIDE" },
         { id: "SEARCH_GROOM", title: "🤵 GROOM" },
         { id: "MENU", title: "📋 MENU" },
@@ -2248,25 +2517,56 @@ Start exploring matches now.`);
       if (!text || text.length < 2) { await sendText(from, "❌ Please enter height.\nकृपया ऊंचाई लिखें।"); return; }
       temp.height = text;
       await setState(from, "ASK_RELIGION", temp);
-      await sendText(from, "🕉️ *Enter your religion*\n*अपना धर्म लिखें*\n\nExamples: Hindu, Muslim, Christian");
+      await sendButtons(from, "🕉️ Select your religion", [
+        { id: "RELIGION_HINDU", title: "🕉️ HINDU" },
+        { id: "RELIGION_OTHER", title: "🌍 OTHER" },
+        { id: "MENU", title: "📋 MENU" },
+      ]);
       return;
     }
-   
+
     if (st.step === "ASK_RELIGION") {
-      if (!text || text.length < 2) { await sendText(from, "❌ Please enter religion.\nकृपया धर्म लिखें।"); return; }
+      if (effectiveInput === "RELIGION_HINDU") {
+        temp.religion = "Hindu";
+      } else if (effectiveInput === "RELIGION_OTHER") {
+        await setState(from, "ASK_RELIGION_OTHER", temp);
+        await sendText(from, "🌍 Type your religion 👇");
+        return;
+      } else if (text && text.length >= 2) {
+        temp.religion = text;
+      } else {
+        await sendText(from, "Please select Hindu or Other.");
+        return;
+      }
+
+      await setState(from, "ASK_CASTE", temp);
+      await sendText(from, "👥 Type your caste or skip 👇");
+      await sendButtons(from, "👇 Choose", [
+        { id: "SKIP_CASTE", title: "⏭️ SKIP" },
+        { id: "MENU", title: "📋 MENU" },
+      ]);
+      return;
+    }
+
+    if (st.step === "ASK_RELIGION_OTHER") {
+      if (!text || text.length < 2) { await sendText(from, "Please type your religion."); return; }
       temp.religion = text;
       await setState(from, "ASK_CASTE", temp);
-      await sendText(from, "👥 *Enter your caste*\n*अपनी जाति लिखें*\n\nType SKIP to skip.");
+      await sendText(from, "👥 Type your caste or skip 👇");
+      await sendButtons(from, "👇 Choose", [
+        { id: "SKIP_CASTE", title: "⏭️ SKIP" },
+        { id: "MENU", title: "📋 MENU" },
+      ]);
       return;
     }
-   
+
     if (st.step === "ASK_CASTE") {
-      temp.caste = isSkip(text) ? "" : text;
+      temp.caste = (effectiveInput === "SKIP_CASTE" || isSkip(text)) ? "" : text;
       await setState(from, "ASK_NATIVE_PLACE", temp);
-      await sendText(from, "🏠 *Enter your native place/city*\n*अपना मूल स्थान/शहर लिखें*");
+      await sendText(from, "🏠 Enter your native place/city");
       return;
     }
-   
+
     if (st.step === "ASK_NATIVE_PLACE") {
       if (!text || text.length < 2) { await sendText(from, "❌ Please enter native place.\nकृपया मूल स्थान लिखें।"); return; }
       temp.native_place = normalizeCityName(text);
@@ -2374,11 +2674,8 @@ Start exploring matches now.`);
 Your Profile ID: *${profileId}*
 
 Start exploring matches now ❤️
-
-${PAYMENT_PLANS_MSG}`);
        
         await sendButtons(from, "👇 Pick an option", [
-          { id: "MAKE_PAYMENT", title: "💎 PREMIUM" },
           { id: "SEARCH", title: "🔍 SEARCH" },
           { id: "MENU", title: "📋 MENU" },
         ]);
@@ -2451,5 +2748,9 @@ app.listen(PORT, () => {
   console.log(`🔗 QR Code: ${QR_IMAGE_URL ? "Configured" : "Not Set"}`);
   console.log(`🧩 Inactive Reminder Template: ${INACTIVE_REMINDER_TEMPLATE ? INACTIVE_REMINDER_TEMPLATE : "Not Set"}`);
   console.log(`⚡ Rate Limiting: ${MIN_MESSAGE_GAP}ms gap, ${MAX_MESSAGES_PER_MINUTE} msg/min`);
-});
+  // Check inactive users every 12 hours
+setInterval(checkInactiveUsers, 12 * 60 * 60 * 1000);
 
+// Run once 2 minutes after startup
+setTimeout(checkInactiveUsers, 2 * 60 * 1000);
+});
