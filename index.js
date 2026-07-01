@@ -2673,7 +2673,7 @@ Start exploring matches now.`);
 
 Your Profile ID: *${profileId}*
 
-Start exploring matches now ❤️
+Start exploring matches now ❤️');
        
         await sendButtons(from, "👇 Pick an option", [
           { id: "SEARCH", title: "🔍 SEARCH" },
